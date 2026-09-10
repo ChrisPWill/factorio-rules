@@ -13,8 +13,15 @@ Run `make validate` to check metadata and entry points independently.
 
 ## Development tools
 
-Run `nix develop` to enter the pinned development environment, then `make lint`
-for Lua 5.2 formatting and static analysis. `make format` applies formatting.
+Run `nix flake check` for the same validation gate used by GitHub Actions. It
+checks metadata, formatting, static analysis, unit tests, packaging behavior, and
+the workflow itself. `nix build` creates a `result` link containing the reproducible
+mod zip. Both commands reuse the Nix store, so running one after the other does not
+repeat the build.
+
+Run `nix develop` to enter the pinned development environment. Inside it, `make
+lint` runs Lua 5.2 formatting and static analysis, `make test` runs unit tests, and
+`make format` applies formatting.
 Without Nix, install Lua 5.2, StyLua, Luacheck, Python 3 and Make.
 Checks target source directories explicitly and exclude generated and vendor files.
 GitHub Actions runs the same lint command for pull requests and pushes to `main`.
@@ -66,7 +73,12 @@ captured log. Temporary saves and mod state are removed after each run.
 
 ## Continuous integration
 
-Pull requests and pushes to `main` run validation, formatting, static analysis,
-unit tests, packaging, and the Factorio 2.0.60 headless scenario. The headless
+Pull requests and pushes to `main` run `nix flake check`, build the same flake
+package, and run the Factorio 2.0.60 headless scenario. The headless
 download is checked against its published SHA-256 digest. Successful runs publish
 `factorio-rules_0.1.0.zip` as the `factorio-rules` workflow artifact.
+
+The integration scenario stays separate because Factorio is downloaded outside
+Nix and cannot run in the pure, network-isolated `nix flake check` build. Run it
+locally with `FACTORIO_BIN=/path/to/factorio make integration-test` when a compatible
+headless binary is available.
