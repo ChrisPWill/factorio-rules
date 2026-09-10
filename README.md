@@ -19,6 +19,11 @@ the workflow itself. `nix build` creates a `result` link containing the reproduc
 mod zip. Both commands reuse the Nix store, so running one after the other does not
 repeat the build.
 
+Run `make all-checks` to include the real Factorio integration scenario. On its
+first run, the command downloads Factorio headless 2.0.60, verifies its SHA-256
+digest, and extracts it under the gitignored `.cache/factorio/` directory. Later
+runs reuse that download and binary.
+
 Run `nix develop` to enter the pinned development environment. Inside it, `make
 lint` runs Lua 5.2 formatting and static analysis, `make test` runs unit tests, and
 `make format` applies formatting.

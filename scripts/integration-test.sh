@@ -8,9 +8,20 @@ if [[ -z "$factorio_bin" || ! -x "$factorio_bin" ]]; then
 fi
 
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+factorio_root="$(cd "$(dirname "$factorio_bin")/../.." && pwd)"
 work_dir="$(mktemp -d)"
 trap 'rm -rf "$work_dir"' EXIT
-mkdir -p "$work_dir/mods"
+mkdir -p "$work_dir/mods" "$work_dir/write-data"
+
+config_file="$work_dir/config.ini"
+cat > "$config_file" <<EOF
+[path]
+read-data=$factorio_root/data
+write-data=$work_dir/write-data
+
+[general]
+locale=en
+EOF
 
 python3 "$root_dir/scripts/package.py" >/dev/null
 cp "$root_dir"/dist/factorio-rules_*.zip "$work_dir/mods/"
@@ -20,6 +31,7 @@ JSON
 
 log_file="$work_dir/factorio.log"
 "$factorio_bin" \
+	--config "$config_file" \
 	--mod-directory "$work_dir/mods" \
 	--map-gen-seed 42 \
 	--start-server-load-scenario factorio-rules/integration >"$log_file" 2>&1 &

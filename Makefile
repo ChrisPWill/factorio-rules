@@ -1,7 +1,7 @@
 LUA ?= lua
 export LUA
 
-.PHONY: validate package lint format test workflow-lint integration-test check
+.PHONY: validate package lint format test workflow-lint integration-test check all-checks
 
 validate:
 	python3 scripts/package.py --validate
@@ -27,3 +27,6 @@ integration-test:
 	bash scripts/integration-test.sh
 
 check: validate lint test workflow-lint
+
+all-checks:
+	bash scripts/check-all.sh
