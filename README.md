@@ -36,3 +36,18 @@ Enable the **Debug logging** runtime setting for prefixed messages in the game l
 See Factorio's [mod structure](https://lua-api.factorio.com/latest/auxiliary/mod-structure.html)
 and [storage lifecycle](https://lua-api.factorio.com/latest/auxiliary/storage.html)
 documentation. Source control uses `jj`; see [AGENTS.md](AGENTS.md).
+
+## Unit tests
+
+Run `make test` in `nix develop`, or `nix develop --command make check` for all
+validation, lint and unit checks. Files matching `tests/unit/*_spec.lua` are
+discovered automatically. Each spec returns an array of `{name = "...", run =
+function() ... end}` cases and uses Lua's `assert` for expectations. Use a loop
+over input/expected tables to add cases, as in `tests/unit/lifecycle_spec.lua`.
+The runner adds `mod/` to `package.path`, so future pure rule/geometry modules can
+be loaded with `require("lib.module")` without Factorio. Runtime modules can be
+loaded into an explicit fake environment using Lua 5.2 `loadfile`.
+
+Failures print a traceback, continue remaining cases, and return a nonzero exit
+status. Empty suites and malformed specs also fail. Python tests verify that
+failure contract and reproducible packaging.
