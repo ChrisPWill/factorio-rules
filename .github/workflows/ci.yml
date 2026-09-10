@@ -17,3 +17,31 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       - run: nix develop --command make check
+      - run: nix develop --command make package
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: factorio-rules
+          path: dist/*.zip
+          if-no-files-found: error
+
+  integration:
+    name: Factorio integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FACTORIO_VERSION: 2.0.60
+      FACTORIO_SHA256: 69b5be1a867fd99524f9914dfee900a1ac386cf4e74c4a63768c05dc4d2b2b0b
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - name: Install Factorio headless
+        run: |
+          curl --fail --location --retry 3 \
+            "https://factorio.com/get-download/${FACTORIO_VERSION}/headless/linux64" \
+            --output "$RUNNER_TEMP/factorio.tar.xz"
+          echo "${FACTORIO_SHA256}  $RUNNER_TEMP/factorio.tar.xz" | sha256sum --check
+          tar --extract --xz --file "$RUNNER_TEMP/factorio.tar.xz" --directory "$RUNNER_TEMP"
+      - name: Run Factorio integration tests
+        env:
+          FACTORIO_BIN: ${{ runner.temp }}/factorio/bin/x64/factorio
+        run: nix develop --command make integration-test

@@ -63,3 +63,10 @@ Add cases to `mod/scenarios/integration/control.lua`. Each case receives a real
 Factorio surface and can place entities and inspect their results. Failed assertions
 raise a runtime error, make Factorio exit unsuccessfully, and remain visible in the
 captured log. Temporary saves and mod state are removed after each run.
+
+## Continuous integration
+
+Pull requests and pushes to `main` run validation, formatting, static analysis,
+unit tests, packaging, and the Factorio 2.0.60 headless scenario. The headless
+download is checked against its published SHA-256 digest. Successful runs publish
+`factorio-rules_0.1.0.zip` as the `factorio-rules` workflow artifact.
