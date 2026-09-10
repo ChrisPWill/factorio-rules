@@ -51,3 +51,15 @@ loaded into an explicit fake environment using Lua 5.2 `loadfile`.
 Failures print a traceback, continue remaining cases, and return a nonzero exit
 status. Empty suites and malformed specs also fail. Python tests verify that
 failure contract and reproducible packaging.
+
+## Factorio integration tests
+
+Set `FACTORIO_BIN` to a Factorio 2.0 headless executable and run `make
+integration-test`. The command packages the current mod, creates an isolated mod
+directory, starts the `factorio-rules/integration` scenario, captures the complete
+Factorio log, and requires both a successful process and the final success marker.
+
+Add cases to `mod/scenarios/integration/control.lua`. Each case receives a real
+Factorio surface and can place entities and inspect their results. Failed assertions
+raise a runtime error, make Factorio exit unsuccessfully, and remain visible in the
+captured log. Temporary saves and mod state are removed after each run.
