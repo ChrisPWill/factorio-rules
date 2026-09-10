@@ -1,0 +1,10 @@
+{
+  "name": "factorio-rules",
+  "version": "0.1.0",
+  "title": "Factorio Rules",
+  "author": "Chris Williams",
+  "factorio_version": "2.0",
+  "dependencies": ["base >= 2.0.0"],
+  "description": "A foundation for configurable rules in Factorio.",
+  "homepage": "https://github.com/ChrisPWill/factorio-rules"
+}

@@ -1,0 +1,7 @@
+.agents/
+.codex/
+.jj/
+dist/
+.cache/
+__pycache__/
+*.pyc
