@@ -1,5 +1,6 @@
 .agents/
 .codex/
+.direnv/
 .jj/
 dist/
 result

@@ -21,6 +21,9 @@
         in {
           default = pkgs.mkShell {
             packages = toolsFor pkgs;
+            shellHook = ''
+              echo "Run all checks: nix flake check"
+            '';
           };
         });
 
