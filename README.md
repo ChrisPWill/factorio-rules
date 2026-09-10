@@ -11,6 +11,14 @@ The package includes only `mod/` files, with sorted entries, fixed timestamps an
 permissions, and no compression so identical inputs produce identical zip bytes.
 Run `make validate` to check metadata and entry points independently.
 
+## Development tools
+
+Run `nix develop` to enter the pinned development environment, then `make lint`
+for Lua 5.2 formatting and static analysis. `make format` applies formatting.
+Without Nix, install Lua 5.2, StyLua, Luacheck, Python 3 and Make.
+Checks target source directories explicitly and exclude generated and vendor files.
+GitHub Actions runs the same lint command for pull requests and pushes to `main`.
+
 ## Module boundaries
 
 - `mod/settings.lua` defines configuration prototypes.
