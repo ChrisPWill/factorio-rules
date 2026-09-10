@@ -102,4 +102,14 @@ return {
 			assert(contains(errors, "must define exactly one"))
 		end,
 	},
+	{
+		name = "preserves strict collection validation",
+		run = function()
+			local input = valid_rule()
+			input.selector.entity_types.extra = "mixed"
+			local normalized, errors = schema.normalize(input)
+			assert(normalized == nil)
+			assert(contains(errors, "must not mix array indexes and string keys"))
+		end,
+	},
 }

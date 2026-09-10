@@ -1,3 +1,5 @@
+local serializable = require("lib.serializable")
+
 local M = {}
 
 M.CURRENT_SCHEMA_VERSION = 1
@@ -8,61 +10,6 @@ end
 
 local function is_positive_integer(value)
 	return type(value) == "number" and value >= 1 and value % 1 == 0
-end
-
-local function copy_data(value, path, errors, ancestors)
-	local value_type = type(value)
-	if value_type == "string" or value_type == "boolean" or value == nil then
-		return value
-	end
-	if value_type == "number" then
-		if value ~= value or value == math.huge or value == -math.huge then
-			add_error(errors, path, "number must be finite")
-			return nil
-		end
-		return value
-	end
-	if value_type ~= "table" then
-		add_error(errors, path, "must contain only serializable data, got " .. value_type)
-		return nil
-	end
-	if ancestors[value] then
-		add_error(errors, path, "must not contain cyclic tables")
-		return nil
-	end
-
-	ancestors[value] = true
-	local result = {}
-	local numeric_keys = {}
-	local has_numeric, has_string = false, false
-	for key in pairs(value) do
-		if type(key) == "number" and is_positive_integer(key) then
-			has_numeric = true
-			numeric_keys[#numeric_keys + 1] = key
-		elseif type(key) == "string" then
-			has_string = true
-		else
-			add_error(errors, path, "keys must be strings or positive array indexes")
-		end
-	end
-	if has_numeric and has_string then
-		add_error(errors, path, "must not mix array indexes and string keys")
-	elseif has_numeric then
-		table.sort(numeric_keys)
-		for index, key in ipairs(numeric_keys) do
-			if key ~= index then
-				add_error(errors, path, "array indexes must be contiguous from 1")
-				break
-			end
-		end
-	end
-	for key, child in pairs(value) do
-		local child_path = type(key) == "number" and (path .. "[" .. key .. "]")
-			or (path .. "." .. tostring(key))
-		result[key] = copy_data(child, child_path, errors, ancestors)
-	end
-	ancestors[value] = nil
-	return result
 end
 
 local function require_string(value, path, errors)
@@ -134,8 +81,7 @@ local function validate_effects(effects, errors)
 end
 
 function M.normalize(input)
-	local errors = {}
-	local rule = copy_data(input, "rule", errors, {})
+	local rule, errors = serializable.copy(input, "rule", { strict_collections = true })
 	if type(rule) ~= "table" then
 		return nil, errors
 	end

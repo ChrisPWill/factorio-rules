@@ -1,43 +1,10 @@
+local serializable = require("lib.serializable")
+
 local M = {}
 local NIL = {}
 
 local function add_error(errors, path, message)
 	errors[#errors + 1] = path .. ": " .. message
-end
-
-local function copy_data(value, path, errors, ancestors)
-	local value_type = type(value)
-	if value_type == "string" or value_type == "boolean" or value == nil then
-		return value
-	end
-	if value_type == "number" then
-		if value ~= value or value == math.huge or value == -math.huge then
-			add_error(errors, path, "number must be finite")
-			return nil
-		end
-		return value
-	end
-	if value_type ~= "table" then
-		add_error(errors, path, "must contain only serializable data, got " .. value_type)
-		return nil
-	end
-	if ancestors[value] then
-		add_error(errors, path, "must not contain cyclic tables")
-		return nil
-	end
-	ancestors[value] = true
-	local result = {}
-	for key, child in pairs(value) do
-		if type(key) ~= "string" and (type(key) ~= "number" or key < 1 or key % 1 ~= 0) then
-			add_error(errors, path, "keys must be strings or positive array indexes")
-		else
-			local child_path = type(key) == "number" and (path .. "[" .. key .. "]")
-				or (path .. "." .. key)
-			result[key] = copy_data(child, child_path, errors, ancestors)
-		end
-	end
-	ancestors[value] = nil
-	return result
 end
 
 local function require_string(value, path, errors)
@@ -67,16 +34,18 @@ function M.new(spec)
 		return nil, { "context: must be a table" }
 	end
 
-	local errors = {}
-	local common = copy_data({
+	local common, errors = serializable.copy({
 		domain = spec.domain,
 		kind = spec.kind,
 		surface = spec.surface,
 		force = spec.force,
 		actor = spec.actor,
 		metadata = spec.metadata or {},
-	}, "context", errors, {})
-	local payload = copy_data(spec.payload or {}, "context.payload", errors, {})
+	}, "context")
+	local payload, payload_errors = serializable.copy(spec.payload or {}, "context.payload")
+	for _, message in ipairs(payload_errors) do
+		errors[#errors + 1] = message
+	end
 
 	require_string(common.domain, "context.domain", errors)
 	require_string(common.kind, "context.kind", errors)
@@ -98,6 +67,7 @@ function M.new(spec)
 		return nil, errors
 	end
 
+	local capabilities = spec.capabilities
 	local capability_cache = {}
 	local context = {
 		domain = common.domain,
@@ -115,10 +85,10 @@ function M.new(spec)
 		if cached ~= nil then
 			return cached == NIL and nil or cached
 		end
-		if not spec.capabilities then
+		if not capabilities then
 			return nil
 		end
-		local value = spec.capabilities:resolve(name, self)
+		local value = capabilities:resolve(name, self)
 		capability_cache[name] = value == nil and NIL or value
 		return value
 	end
