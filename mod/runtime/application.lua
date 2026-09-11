@@ -15,6 +15,7 @@ local Zones = require("lib.zones")
 local NauvisMiner = require("lib.builtin.nauvis_miner")
 local RuleRegistry = require("lib.rules.registry")
 local Extensions = require("runtime.extensions")
+local RuleUI = require("runtime.rule_ui")
 
 local M = {}
 
@@ -197,6 +198,22 @@ function M.register(runtime)
 		assert(changed ~= nil, errors and table.concat(errors, "; "))
 		assert(overlays:replace(overlay_entries()))
 	end
+
+	local rule_ui = RuleUI.new({
+		get_player = function(index)
+			return game.get_player(index)
+		end,
+		effective_rules = function()
+			return assert(rule_registry:effective())
+		end,
+		set_override = function(id, fields)
+			return rule_registry:set_override(id, fields)
+		end,
+		clear_override = function(id)
+			return rule_registry:clear_override(id)
+		end,
+		rebuild = configure_policy,
+	})
 
 	local function prepare_spawn_classification()
 		local classifier = spawn_classifier()
@@ -428,8 +445,20 @@ function M.register(runtime)
 	script.on_event(defines.events.on_lua_shortcut, function(event)
 		if event.prototype_name == Overlays.SHORTCUT_NAME then
 			overlays:toggle(event.player_index)
+		elseif event.prototype_name == RuleUI.SHORTCUT_NAME then
+			rule_ui:open(event.player_index)
 		end
 	end)
+	if defines.events.on_gui_click then
+		script.on_event(defines.events.on_gui_click, function(event)
+			rule_ui:handle_click(event)
+		end)
+	end
+	if defines.events.on_gui_checked_state_changed then
+		script.on_event(defines.events.on_gui_checked_state_changed, function(event)
+			rule_ui:handle_click(event)
+		end)
+	end
 
 	script.on_event(defines.events.on_player_joined_game, function(event)
 		overlays:sync_player(event.player_index)

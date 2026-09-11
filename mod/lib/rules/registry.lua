@@ -159,6 +159,12 @@ function M.new(target)
 		return true, nil
 	end
 
+	function registry.clear_override(_self, id)
+		state.overrides[id] = nil
+		state.override_versions[id] = nil
+		return true, nil
+	end
+
 	function registry.migrate(_self, options)
 		options = options or {}
 		local target_framework = options.framework_schema_version or FRAMEWORK_SCHEMA_VERSION
