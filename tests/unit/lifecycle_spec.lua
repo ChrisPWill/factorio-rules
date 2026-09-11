@@ -10,15 +10,18 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 			state.initialize()
 			assert(persisted.rules.schema_version == 1)
 			assert(type(persisted.violations) == "table")
+			assert(type(persisted.overlays.players) == "table")
 			if existing then
 				assert(persisted.rules == existing)
 				assert(persisted.rules.saved_rule == "preserved")
 			end
 			local first = persisted.rules
 			local violations = persisted.violations
+			local overlays = persisted.overlays
 			state.initialize()
 			assert(persisted.rules == first, "Initialization must be idempotent")
 			assert(persisted.violations == violations)
+			assert(persisted.overlays == overlays)
 		end,
 	}
 end

@@ -7,6 +7,7 @@ local Evaluator = require("lib.rules.evaluator")
 local Construction = require("runtime.construction")
 local Rollback = require("runtime.rollback")
 local Feedback = require("runtime.feedback")
+local Overlays = require("runtime.overlays")
 
 local adapters = AdapterRegistry.new()
 ConstructionAdapters.register(adapters)
@@ -33,6 +34,28 @@ local feedback = Feedback.factorio({
 		return game.forces[index]
 	end,
 })
+local overlays = Overlays.factorio({
+	state = function()
+		return storage.overlays
+	end,
+	player_indices = function()
+		local result = {}
+		for _, player in pairs(game.players) do
+			result[#result + 1] = player.index
+		end
+		return result
+	end,
+	is_admin = function(index)
+		local player = game.get_player(index)
+		return player and player.admin
+	end,
+	set_shortcut = function(index, toggled)
+		local player = game.get_player(index)
+		if player then
+			player.set_shortcut_toggled(Overlays.SHORTCUT_NAME, toggled)
+		end
+	end,
+}, rendering)
 local enforcer = Construction.new({
 	adapters = adapters,
 	compiler = compiler,
@@ -60,10 +83,22 @@ remote.add_interface(
 
 script.on_init(function()
 	state.initialize()
+	overlays:replace({})
 	logger.debug("Initialized persistent state")
 end)
 
 script.on_configuration_changed(function()
 	state.initialize()
+	overlays:replace({})
 	logger.debug("Configuration updated")
+end)
+
+script.on_event(defines.events.on_lua_shortcut, function(event)
+	if event.prototype_name == Overlays.SHORTCUT_NAME then
+		overlays:toggle(event.player_index)
+	end
+end)
+
+script.on_event(defines.events.on_player_joined_game, function(event)
+	overlays:sync_player(event.player_index)
 end)

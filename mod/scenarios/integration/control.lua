@@ -5,6 +5,7 @@ local Evaluator = require("__factorio-rules__.lib.rules.evaluator")
 local Construction = require("__factorio-rules__.runtime.construction")
 local Rollback = require("__factorio-rules__.runtime.rollback")
 local Feedback = require("__factorio-rules__.runtime.feedback")
+local Overlays = require("__factorio-rules__.runtime.overlays")
 
 local checks = {
 	{
@@ -18,6 +19,49 @@ local checks = {
 			assert(entity and entity.valid, "stone-furnace was not created")
 			assert(entity.name == "stone-furnace", "unexpected entity prototype")
 			assert(entity.position.x == 0 and entity.position.y == 0, "unexpected entity position")
+		end,
+	},
+	{
+		name = "circle and rectangle overlays render once on the selected surface",
+		run = function(surface)
+			local overlay_state = { players = {}, forced = {}, entries = {}, objects = {} }
+			local overlays = Overlays.factorio({
+				state = function()
+					return overlay_state
+				end,
+				player_indices = function()
+					return {}
+				end,
+			}, rendering)
+			local entries = {
+				{
+					key = "integration:circle@1",
+					zone_id = "integration:circle",
+					shape = { type = "circle", radius = 5 },
+					center = { x = 0, y = 10 },
+					surface = { index = surface.index, name = surface.name },
+				},
+				{
+					key = "integration:rectangle@1",
+					zone_id = "integration:rectangle",
+					shape = { type = "rectangle", width = 4, height = 6 },
+					center = { x = 10, y = 10 },
+					surface = { index = surface.index, name = surface.name },
+				},
+			}
+			assert(overlays:replace(entries))
+			local circle = overlay_state.objects["integration:circle@1"].object
+			local rectangle = overlay_state.objects["integration:rectangle@1"].object
+			assert(circle.valid and circle.type == "circle" and circle.surface == surface)
+			assert(
+				rectangle.valid and rectangle.type == "rectangle" and rectangle.surface == surface
+			)
+			local circle_id, rectangle_id = circle.id, rectangle.id
+			assert(overlays:replace(entries))
+			assert(overlay_state.objects["integration:circle@1"].object.id == circle_id)
+			assert(overlay_state.objects["integration:rectangle@1"].object.id == rectangle_id)
+			assert(overlays:replace({}))
+			assert(not circle.valid and not rectangle.valid)
 		end,
 	},
 	{
