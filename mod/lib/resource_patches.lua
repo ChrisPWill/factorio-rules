@@ -59,7 +59,7 @@ local function add_resource(state, patch, resource)
 	if patch.cells[key] then
 		return
 	end
-	patch.cells[key] = true
+	patch.cells[key] = { x = x, y = y }
 	state.cells[key] = patch.id
 	patch.size = patch.size + 1
 	patch.total_amount = patch.total_amount + (resource.amount or 0)
@@ -70,8 +70,8 @@ local function merge(state, target, source)
 	if target.id == source.id then
 		return target
 	end
-	for key in pairs(source.cells) do
-		target.cells[key] = true
+	for key, position in pairs(source.cells) do
+		target.cells[key] = position
 		state.cells[key] = target.id
 	end
 	target.size = target.size + source.size
@@ -184,6 +184,26 @@ function M.new(state)
 			cell_key(surface_index, resource_name, coordinate(position.x), coordinate(position.y))
 		local id = state.cells[key]
 		return id and resolve_id(state, id) or nil
+	end
+
+	function tracker.members(_self, id)
+		local patch = state.patches[resolve_id(state, id)]
+		if not patch then
+			return nil
+		end
+		local result = {}
+		for _, position in pairs(patch.cells) do
+			result[#result + 1] = {
+				surface_index = patch.surface_index,
+				resource_name = patch.resource_name,
+				x = position.x,
+				y = position.y,
+			}
+		end
+		table.sort(result, function(left, right)
+			return left.y == right.y and left.x < right.x or left.y < right.y
+		end)
+		return result
 	end
 
 	function tracker.all()
