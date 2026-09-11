@@ -6,7 +6,8 @@ return {
 		run = function()
 			local overrides, rebuilds = {}, 0
 			local ui = RuleUI.new({
-				get_player = function()
+				get_player = function(index)
+					assert(index == 1)
 					return nil
 				end,
 				effective_rules = function()
@@ -34,6 +35,8 @@ return {
 			element.text = "7"
 			assert(ui:handle_click({ element = element, player_index = 1 }))
 			assert(overrides["test:rule"].priority == 7 and rebuilds == 2)
+			local close = { valid = true, tags = { action = "close" } }
+			assert(ui:handle_click({ element = close, player_index = 1 }))
 		end,
 	},
 }

@@ -69,7 +69,7 @@ function M.new(options)
 		if not target or not target.gui or not target.gui.screen then
 			return nil, "player GUI unavailable"
 		end
-		ui.close(index)
+		ui:close(index)
 		local frame = target.gui.screen.add({
 			type = "frame",
 			name = M.FRAME_NAME,
@@ -93,7 +93,7 @@ function M.new(options)
 		end
 		local action, id = element.tags.action, element.tags.rule_id
 		if action == "close" then
-			ui.close(event.player_index)
+			ui:close(event.player_index)
 			return true
 		elseif action == "reset" then
 			assert(options.clear_override(id))
