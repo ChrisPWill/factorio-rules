@@ -1,6 +1,9 @@
 local Application = require("runtime.application")
 
 Application.register({
+	prototypes = function()
+		return prototypes
+	end,
 	game = function()
 		return game
 	end,

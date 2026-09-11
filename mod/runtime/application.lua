@@ -17,6 +17,7 @@ local RuleRegistry = require("lib.rules.registry")
 local Extensions = require("runtime.extensions")
 local RuleUI = require("runtime.rule_ui")
 local ZoneEditing = require("runtime.zone_editing")
+local Catalogue = require("lib.rules.catalogue")
 
 local M = {}
 
@@ -394,7 +395,7 @@ function M.register(runtime)
 			State.reset_resource_cache(storage())
 		end,
 	})
-	local evaluator = Evaluator.new(setmetatable(extensions:predicates(), {
+	local predicates = setmetatable(extensions:predicates(), {
 		__index = {
 			[NauvisMiner.INSIDE_PREDICATE] = function(context)
 				local inside, err =
@@ -418,7 +419,42 @@ function M.register(runtime)
 				return matched == nil or matched
 			end,
 		},
-	}))
+	})
+	predicates[Catalogue.ALWAYS] = function()
+		return true
+	end
+	local catalogue = Catalogue.new({
+		predicates = predicates,
+		actions = extensions:actions(),
+		reference_exists = function(kind, name)
+			if kind == "entity" or kind == "entity_type" then
+				local entities = runtime.prototypes and runtime.prototypes().entity or {}
+				if kind == "entity" then
+					return entities[name] ~= nil
+				end
+				for _, prototype in pairs(entities) do
+					if prototype.type == name then
+						return true
+					end
+				end
+			end
+			if kind == "surface" then
+				return game.surfaces[name] ~= nil
+			end
+			if kind == "force" then
+				return game.forces[name] ~= nil
+			end
+			if kind == "zone" then
+				for _, zone in ipairs(zones.list()) do
+					if zone.id == name then
+						return true
+					end
+				end
+			end
+			return false
+		end,
+	})
+	local evaluator = Evaluator.new(predicates)
 	local enforcer = Construction.new({
 		adapters = adapters,
 		compiler = compiler,
@@ -474,6 +510,12 @@ function M.register(runtime)
 					configure_policy()
 				end
 				return result, errors
+			end,
+			authoring_catalogue = function()
+				return catalogue.describe()
+			end,
+			validate_authored_rule = function(rule)
+				return catalogue:validate(rule)
 			end,
 			effective_rules = function()
 				return rule_registry:effective()

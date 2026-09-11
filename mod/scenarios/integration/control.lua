@@ -17,6 +17,18 @@ local RuleEvaluator = require("__factorio-rules__.lib.rules.evaluator")
 
 local checks = {
 	{
+		name = "application catalogue validates real prototypes and available handlers",
+		run = function()
+			local description = remote.call("factorio_rules", "authoring_catalogue")
+			assert(description.predicates["factorio-rules:always"].available)
+			local rule = NauvisMiner.rule()
+			assert(remote.call("factorio_rules", "validate_authored_rule", rule))
+			rule.selector.entity_names = { "not-a-real-prototype" }
+			local valid, errors = remote.call("factorio_rules", "validate_authored_rule", rule)
+			assert(not valid and #errors > 0)
+		end,
+	},
+	{
 		name = "rule registry resolves source, patch, save override, and orphan provenance",
 		run = function()
 			local state = {}

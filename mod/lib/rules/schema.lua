@@ -3,6 +3,8 @@ local serializable = require("lib.serializable")
 local M = {}
 
 M.CURRENT_SCHEMA_VERSION = 1
+M.MAX_CONDITION_DEPTH = 8
+M.MAX_CONDITION_NODES = 64
 
 local function add_error(errors, path, message)
 	errors[#errors + 1] = path .. ": " .. message
@@ -20,7 +22,14 @@ local function require_string(value, path, errors)
 	return true
 end
 
-local function validate_condition(condition, path, errors)
+local function validate_condition(condition, path, errors, depth, budget)
+	depth = depth or 1
+	budget = budget or { count = 0 }
+	budget.count = budget.count + 1
+	if depth > M.MAX_CONDITION_DEPTH or budget.count > M.MAX_CONDITION_NODES then
+		add_error(errors, path, "condition exceeds depth or node limit")
+		return
+	end
 	if type(condition) ~= "table" then
 		add_error(errors, path, "must be a condition table")
 		return
@@ -42,11 +51,22 @@ local function validate_condition(condition, path, errors)
 			add_error(errors, path .. "." .. key, "must be a nonempty array")
 			return
 		end
+		for child_key in pairs(children) do
+			if type(child_key) ~= "number" then
+				add_error(errors, path, "conditions must be an array")
+			end
+		end
 		for index, child in ipairs(children) do
-			validate_condition(child, path .. "." .. key .. "[" .. index .. "]", errors)
+			validate_condition(
+				child,
+				path .. "." .. key .. "[" .. index .. "]",
+				errors,
+				depth + 1,
+				budget
+			)
 		end
 	elseif condition["not"] ~= nil then
-		validate_condition(condition["not"], path .. ".not", errors)
+		validate_condition(condition["not"], path .. ".not", errors, depth + 1, budget)
 	else
 		require_string(condition.predicate, path .. ".predicate", errors)
 	end
