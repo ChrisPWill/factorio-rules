@@ -27,6 +27,122 @@ local checks = {
 		end,
 	},
 	{
+		name = "seed 3885402781 restricts nearby non-starting resource patches",
+		run = function(surface)
+			local force = game.forces.player
+			local spawn = force.get_spawn_position(surface)
+			surface.request_to_generate_chunks(spawn, 16)
+			surface.force_generate_chunk_requests()
+
+			local resources = {}
+			for _, entity in
+				ipairs(surface.find_entities_filtered({
+					area = {
+						{ spawn.x - 512, spawn.y - 512 },
+						{ spawn.x + 512, spawn.y + 512 },
+					},
+					type = "resource",
+				}))
+			do
+				if entity.prototype.resource_category ~= "basic-fluid" then
+					resources[#resources + 1] = {
+						name = entity.name,
+						surface_index = surface.index,
+						position = entity.position,
+						amount = entity.amount,
+						kind = "solid",
+					}
+				end
+			end
+			local tracker = ResourcePatches.new({
+				next_id = 1,
+				patches = {},
+				cells = {},
+				aliases = {},
+			})
+			local discovered = tracker:ingest(resources)
+			local patch_ids = {}
+			for _, item in ipairs(discovered) do
+				patch_ids[#patch_ids + 1] = item.patch_id
+			end
+			local initial_ids = NauvisMiner.initial_spawn_patch_ids(tracker, patch_ids, spawn)
+			assert(#initial_ids > 0, "expected a starting resource patch")
+			local initial = {}
+			for _, patch_id in ipairs(initial_ids) do
+				initial[patch_id] = true
+			end
+			local nearby
+			for _, patch in ipairs(tracker:all()) do
+				if not initial[patch.id] then
+					for _, member in ipairs(tracker:members(patch.id)) do
+						if (member.x - spawn.x) ^ 2 + (member.y - spawn.y) ^ 2 <= 500 ^ 2 then
+							nearby = member
+							break
+						end
+					end
+				end
+				if nearby then
+					break
+				end
+			end
+			assert(nearby, "expected a non-starting patch inside the default restriction")
+
+			local classifier = SpawnPatches.new({ windows = {} }, tracker)
+			local surface_reference = { index = surface.index, name = surface.name }
+			local force_reference = { index = force.index, name = force.name }
+			assert(classifier:open(surface_reference, force_reference))
+			assert(classifier:observe(surface_reference, force_reference, initial_ids))
+			assert(classifier:close(surface_reference, force_reference))
+			local zones = assert(Zones.new({ NauvisMiner.zone(500) }, {
+				force_spawn = function()
+					return spawn
+				end,
+			}))
+			local compiler = Compiler.new()
+			assert(compiler:replace({ NauvisMiner.rule() }))
+			local evaluator = Evaluator.new({
+				[NauvisMiner.INSIDE_PREDICATE] = function(context)
+					return zones:contains(
+						NauvisMiner.ZONE_ID,
+						context,
+						context.payload.entity.position
+					)
+				end,
+				[NauvisMiner.SPAWN_PATCH_PREDICATE] = function(context)
+					return classifier:has_spawn_resource(
+						context.surface,
+						context.force,
+						context.payload.entity.mining_area
+					)
+				end,
+			})
+			local function evaluate(member)
+				local candidate = {
+					domain = "construction",
+					kind = "entity-built",
+					surface = surface_reference,
+					force = force_reference,
+					payload = {
+						source = "player",
+						entity = {
+							name = "electric-mining-drill",
+							type = "mining-drill",
+							position = member,
+							mining_area = {
+								left_top = member,
+								right_bottom = { x = member.x + 1, y = member.y + 1 },
+							},
+						},
+					},
+				}
+				return assert(evaluator:evaluate(compiler:candidates(candidate), candidate))
+			end
+			local starting_member = tracker:members(initial_ids[1])[1]
+			assert(evaluate(starting_member).outcome == "allow")
+			assert(evaluate(nearby).outcome == "deny")
+		end,
+	},
+	{
 		name = "circle and rectangle overlays render once on the selected surface",
 		run = function(surface)
 			local overlay_state = { players = {}, forced = {}, entries = {}, objects = {} }

@@ -4,6 +4,29 @@ M.RULE_ID = "factorio-rules:nauvis-spawn-miners"
 M.ZONE_ID = "factorio-rules:nauvis-spawn"
 M.INSIDE_PREDICATE = "factorio-rules:inside-nauvis-spawn"
 M.SPAWN_PATCH_PREDICATE = "factorio-rules:on-spawn-patch"
+M.INITIAL_SPAWN_RADIUS = 128
+
+function M.is_in_initial_spawn_area(center, position)
+	local x = position.x - center.x
+	local y = position.y - center.y
+	return x * x + y * y <= M.INITIAL_SPAWN_RADIUS * M.INITIAL_SPAWN_RADIUS
+end
+
+function M.initial_spawn_patch_ids(tracker, patch_ids, center)
+	local selected, seen = {}, {}
+	for _, patch_id in ipairs(patch_ids) do
+		if not seen[patch_id] then
+			seen[patch_id] = true
+			for _, member in ipairs(tracker:members(patch_id) or {}) do
+				if M.is_in_initial_spawn_area(center, member) then
+					selected[#selected + 1] = patch_id
+					break
+				end
+			end
+		end
+	end
+	return selected
+end
 
 function M.zone(radius)
 	return {

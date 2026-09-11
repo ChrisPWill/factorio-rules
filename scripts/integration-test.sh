@@ -26,14 +26,14 @@ EOF
 python3 "$root_dir/scripts/package.py" >/dev/null
 cp "$root_dir"/dist/factorio-rules_*.zip "$work_dir/mods/"
 cat > "$work_dir/mods/mod-list.json" <<'JSON'
-{"mods":[{"name":"base","enabled":true},{"name":"factorio-rules","enabled":true},{"name":"space-age","enabled":false},{"name":"quality","enabled":false},{"name":"elevated-rails","enabled":false}]}
+{"mods":[{"name":"base","enabled":true},{"name":"factorio-rules","enabled":true},{"name":"space-age","enabled":true},{"name":"quality","enabled":true},{"name":"elevated-rails","enabled":true}]}
 JSON
 
 log_file="$work_dir/factorio.log"
 "$factorio_bin" \
 	--config "$config_file" \
 	--mod-directory "$work_dir/mods" \
-	--map-gen-seed 42 \
+	--map-gen-seed 3885402781 \
 	--start-server-load-scenario factorio-rules/integration >"$log_file" 2>&1 &
 factorio_pid=$!
 

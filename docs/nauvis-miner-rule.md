@@ -4,7 +4,9 @@ The built-in `factorio-rules:nauvis-spawn-miners` rule denies mining-drill
 construction on Nauvis inside the force-relative spawn circle unless the drill's
 mining area overlaps a solid resource cell frozen by initial spawn discovery. The
 radius is controlled by **Nauvis spawn mining restriction radius** and defaults to
-500 tiles.
+500 tiles. Initial discovery only classifies patches that overlap the fixed
+128-tile circle around the force spawn; patches farther out remain restricted even
+when they were generated during startup.
 
 Player, robot, blueprint ghost, revived ghost, and cooperating script builds enter
 the same construction evaluator. A denial uses the shared rollback/refund path and

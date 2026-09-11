@@ -197,7 +197,9 @@ function M.register(runtime)
 				for _, item in ipairs(discovered) do
 					ids[#ids + 1] = item.patch_id
 				end
-				assert(classifier:observe(target.surface, target.force, ids))
+				local _, center = zones:resolve(NauvisMiner.ZONE_ID, target)
+				local spawn_ids = NauvisMiner.initial_spawn_patch_ids(patch_tracker(), ids, center)
+				assert(classifier:observe(target.surface, target.force, spawn_ids))
 			end
 		end
 	end

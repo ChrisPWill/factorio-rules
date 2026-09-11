@@ -61,4 +61,19 @@ return {
 			assert(#compiler:candidates(off_surface) == 0)
 		end,
 	},
+	{
+		name = "classifies only patches that overlap the initial spawn area",
+		run = function()
+			local members = {
+				starting = { { x = 128, y = 0 } },
+				nearby = { { x = 129, y = 0 } },
+			}
+			local ids = NauvisMiner.initial_spawn_patch_ids({
+				members = function(_, patch_id)
+					return members[patch_id]
+				end,
+			}, { "nearby", "starting", "starting" }, { x = 0, y = 0 })
+			assert(#ids == 1 and ids[1] == "starting")
+		end,
+	},
 }
