@@ -70,7 +70,9 @@ function M.new(options)
 			end
 			return { outcome = "allow", matched_rule_ids = {}, actions = {} }, boundary, nil
 		end
-		local result, evaluation_error = options.evaluator:evaluate(candidates, context)
+		local result, evaluation_error = options.evaluator:evaluate(candidates, context, {
+			services = options.services or {},
+		})
 		if not result then
 			return nil, boundary, { evaluation_error }
 		end

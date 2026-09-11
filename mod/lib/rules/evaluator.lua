@@ -2,13 +2,13 @@ local Selector = require("lib.rules.selector")
 
 local M = {}
 
-local function evaluate_condition(condition, context, predicates, explain)
+local function evaluate_condition(condition, context, predicates, services, explain)
 	if condition.predicate then
 		local predicate = predicates[condition.predicate]
 		if not predicate then
 			return nil, nil, "unknown predicate " .. condition.predicate
 		end
-		local matched = not not predicate(context, condition)
+		local matched = not not predicate(context, condition, services)
 		local trace = explain
 				and {
 					kind = "predicate",
@@ -21,7 +21,7 @@ local function evaluate_condition(condition, context, predicates, explain)
 
 	if condition["not"] then
 		local matched, child, err =
-			evaluate_condition(condition["not"], context, predicates, explain)
+			evaluate_condition(condition["not"], context, predicates, services, explain)
 		if err then
 			return nil, nil, err
 		end
@@ -35,7 +35,7 @@ local function evaluate_condition(condition, context, predicates, explain)
 	local children = explain and {} or nil
 	for _, child_condition in ipairs(condition[key]) do
 		local matched, child, err =
-			evaluate_condition(child_condition, context, predicates, explain)
+			evaluate_condition(child_condition, context, predicates, services, explain)
 		if err then
 			return nil, nil, err
 		end
@@ -72,6 +72,7 @@ function M.new(predicates)
 
 	function evaluator.evaluate(_self, rules, context, options)
 		options = options or {}
+		local services = options.services or {}
 		local matched_ids = {}
 		local actions = {}
 		local first_deny, first_warning
@@ -92,8 +93,13 @@ function M.new(predicates)
 						rule_trace.rejected_by = rejected_by
 					end
 				else
-					local matched, condition_trace, err =
-						evaluate_condition(rule.when, context, predicates, options.explain)
+					local matched, condition_trace, err = evaluate_condition(
+						rule.when,
+						context,
+						predicates,
+						services,
+						options.explain
+					)
 					if err then
 						return nil, "rule " .. rule.id .. ": " .. err
 					end

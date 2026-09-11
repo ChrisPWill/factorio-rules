@@ -14,6 +14,7 @@ local SpawnPatches = require("lib.spawn_patches")
 local Zones = require("lib.zones")
 local NauvisMiner = require("lib.builtin.nauvis_miner")
 local RuleRegistry = require("lib.rules.registry")
+local Extensions = require("runtime.extensions")
 
 local M = {}
 
@@ -51,10 +52,14 @@ function M.register(runtime)
 	end
 
 	local logger = Logger.new(settings, log)
+	local extensions = Extensions.new()
 
 	local adapters = AdapterRegistry.new()
 	ConstructionAdapters.register(adapters)
-	local compiler = Compiler.new()
+	local compiler = Compiler.new({
+		predicate_requirements = extensions:predicate_requirements(),
+		action_requirements = extensions:action_requirements(),
+	})
 	local rule_registry
 	local rollback = Rollback.factorio({
 		get_player = function(index)
@@ -77,6 +82,7 @@ function M.register(runtime)
 		get_force = function(index)
 			return game.forces[index]
 		end,
+		actions = extensions:actions(),
 	})
 	local overlays = Overlays.factorio({
 		state = function()
@@ -314,33 +320,36 @@ function M.register(runtime)
 			State.reset_resource_cache(storage())
 		end,
 	})
-	local evaluator = Evaluator.new({
-		[NauvisMiner.INSIDE_PREDICATE] = function(context)
-			local inside, err =
-				zones:contains(NauvisMiner.ZONE_ID, context, context.payload.entity.position)
-			assert(err == nil, err)
-			return inside
-		end,
-		[NauvisMiner.SPAWN_PATCH_PREDICATE] = function(context)
-			local entity = context.payload.entity
-			local position = entity.position
-			local area = entity.mining_area
-				or {
-					left_top = { x = math.floor(position.x), y = math.floor(position.y) },
-					right_bottom = {
-						x = math.floor(position.x) + 1,
-						y = math.floor(position.y) + 1,
-					},
-				}
-			local matched =
-				spawn_classifier():has_spawn_resource(context.surface, context.force, area)
-			return matched == nil or matched
-		end,
-	})
+	local evaluator = Evaluator.new(setmetatable(extensions:predicates(), {
+		__index = {
+			[NauvisMiner.INSIDE_PREDICATE] = function(context)
+				local inside, err =
+					zones:contains(NauvisMiner.ZONE_ID, context, context.payload.entity.position)
+				assert(err == nil, err)
+				return inside
+			end,
+			[NauvisMiner.SPAWN_PATCH_PREDICATE] = function(context)
+				local entity = context.payload.entity
+				local position = entity.position
+				local area = entity.mining_area
+					or {
+						left_top = { x = math.floor(position.x), y = math.floor(position.y) },
+						right_bottom = {
+							x = math.floor(position.x) + 1,
+							y = math.floor(position.y) + 1,
+						},
+					}
+				local matched =
+					spawn_classifier():has_spawn_resource(context.surface, context.force, area)
+				return matched == nil or matched
+			end,
+		},
+	}))
 	local enforcer = Construction.new({
 		adapters = adapters,
 		compiler = compiler,
 		evaluator = evaluator,
+		services = {},
 		record = function(result)
 			storage().last_enforcement = result
 		end,
@@ -377,6 +386,20 @@ function M.register(runtime)
 			end,
 			migrate_rules = function(options)
 				return rule_registry:migrate(options)
+			end,
+			register_predicate = function(name, callback, requirement)
+				local result, errors = extensions:register_predicate(name, callback, requirement)
+				if result then
+					configure_policy()
+				end
+				return result, errors
+			end,
+			register_action = function(name, callback, requirement)
+				local result, errors = extensions:register_action(name, callback, requirement)
+				if result then
+					configure_policy()
+				end
+				return result, errors
 			end,
 			effective_rules = function()
 				return rule_registry:effective()

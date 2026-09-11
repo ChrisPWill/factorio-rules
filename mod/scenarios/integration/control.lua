@@ -12,6 +12,8 @@ local SpawnPatches = require("__factorio-rules__.lib.spawn_patches")
 local Zones = require("__factorio-rules__.lib.zones")
 local NauvisMiner = require("__factorio-rules__.lib.builtin.nauvis_miner")
 local RuleRegistry = require("__factorio-rules__.lib.rules.registry")
+local Extensions = require("__factorio-rules__.runtime.extensions")
+local RuleEvaluator = require("__factorio-rules__.lib.rules.evaluator")
 
 local checks = {
 	{
@@ -56,6 +58,44 @@ local checks = {
 			local effective = assert(registry:effective())
 			assert(effective[1].priority == 9)
 			assert(state.source_versions.integration == "2.0.0")
+		end,
+	},
+	{
+		name = "extension predicate receives constrained context and services",
+		run = function()
+			local extensions = Extensions.new()
+			assert(
+				extensions:register_predicate(
+					"integration:always",
+					function(context, condition, services)
+						assert(
+							context.domain == "integration"
+								and condition.predicate == "integration:always"
+						)
+						return services.enabled
+					end
+				)
+			)
+			local evaluator = RuleEvaluator.new(extensions:predicates())
+			local result = assert(evaluator:evaluate({
+				{
+					id = "integration:rule",
+					priority = 1,
+					enabled = true,
+					event = { domain = "integration", kind = "event" },
+					selector = {},
+					scope = {},
+					when = { predicate = "integration:always" },
+					effects = { primary = { type = "warn", reason = "extension" }, actions = {} },
+				},
+			}, {
+				domain = "integration",
+				kind = "event",
+				surface = {},
+				force = {},
+				payload = { entity = { type = "test" } },
+			}, { services = { enabled = true } }))
+			assert(result.outcome == "warn")
 		end,
 	},
 	{
