@@ -3,8 +3,8 @@ local serializable = require("lib.serializable")
 local M = {}
 M.SHORTCUT_NAME = "factorio-rules-toggle-zones"
 
-local function sorted_player_indices(options)
-	local result = options.player_indices()
+local function sorted_player_indices(options, entry)
+	local result = options.player_indices(entry)
 	table.sort(result)
 	return result
 end
@@ -30,7 +30,7 @@ end
 
 local function audience(entry, state, options)
 	local result = {}
-	for _, player_index in ipairs(sorted_player_indices(options)) do
+	for _, player_index in ipairs(sorted_player_indices(options, entry)) do
 		if visible_for(entry, state, player_index) then
 			result[#result + 1] = player_index
 		end

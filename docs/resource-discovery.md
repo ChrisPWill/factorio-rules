@@ -9,10 +9,11 @@ Placement checks call the patch tracker's cell cache directly. They never invoke
 surface resource search. The persistent queue and processed-chunk set survive saves,
 so interrupted work resumes without scanning completed chunks again.
 
-After startup discovery drains, the configured expected resource prototypes are
-compared with discovered patches. Missing resources produce warnings and no synthetic
-patches. The **Expected Nauvis spawn resources** runtime setting is a comma-separated
-list and may be blank when a mod pack has different generation assumptions.
+After startup discovery drains, spawn classification freezes and the configured
+expected resource prototypes are compared with that force-relative spawn cache.
+Missing resources produce warnings and no synthetic patches. The **Expected Nauvis
+spawn resources** runtime setting is a comma-separated list and may be blank when a
+mod pack has different generation assumptions.
 
 An explicit rebuild clears the patch and spawn-classification caches, clears the
 processed-chunk set, and queues every supplied generated chunk again. Ordinary load,

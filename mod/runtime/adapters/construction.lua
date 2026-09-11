@@ -15,6 +15,26 @@ local function entity_payload(entity)
 		payload.ghost_name = entity.ghost_name
 		payload.ghost_type = entity.ghost_type
 	end
+	local prototype
+	if entity.type == "mining-drill" then
+		prototype = entity.prototype
+	elseif entity.type == "entity-ghost" and entity.ghost_type == "mining-drill" then
+		prototype = entity.ghost_prototype
+	end
+	local radius = prototype and prototype.mining_drill_radius
+	local mining_area
+	if radius then
+		mining_area = {
+			left_top = { x = entity.position.x - radius, y = entity.position.y - radius },
+			right_bottom = { x = entity.position.x + radius, y = entity.position.y + radius },
+		}
+	end
+	if mining_area then
+		payload.mining_area = {
+			left_top = { x = mining_area.left_top.x, y = mining_area.left_top.y },
+			right_bottom = { x = mining_area.right_bottom.x, y = mining_area.right_bottom.y },
+		}
+	end
 	return payload
 end
 

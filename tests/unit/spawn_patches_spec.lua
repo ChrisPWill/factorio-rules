@@ -57,6 +57,27 @@ return {
 		end,
 	},
 	{
+		name = "answers mining-area overlap from the frozen position cache",
+		run = function()
+			local tracker, classifier = setup()
+			tracker:ingest({ resource("iron-ore", 4, 5) })
+			local id = tracker:patch_for(1, "iron-ore", { x = 4, y = 5 })
+			assert(classifier:open(surface, player))
+			assert(classifier:observe(surface, player, { id }))
+			assert(classifier:close(surface, player))
+			assert(classifier:has_spawn_resource(surface, player, {
+				left_top = { x = 3.5, y = 4.5 },
+				right_bottom = { x = 5.5, y = 6.5 },
+			}))
+			assert(classifier:has_resource_name(surface, player, "iron-ore"))
+			assert(not classifier:has_resource_name(surface, player, "coal"))
+			assert(not classifier:has_spawn_resource(surface, player, {
+				left_top = { x = 10, y = 10 },
+				right_bottom = { x = 13, y = 13 },
+			}))
+		end,
+	},
+	{
 		name = "classifies independently for each force",
 		run = function()
 			local tracker, classifier = setup()

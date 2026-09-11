@@ -23,4 +23,13 @@ data:extend({
 		allow_blank = true,
 		order = "c",
 	},
+	{
+		type = "int-setting",
+		name = "factorio-rules-nauvis-spawn-radius",
+		setting_type = "runtime-global",
+		default_value = 500,
+		minimum_value = 1,
+		maximum_value = 10000,
+		order = "d",
+	},
 })

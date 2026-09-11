@@ -18,13 +18,18 @@ end
 
 local function validate_expected(options)
 	local available = {}
-	for _, patch in ipairs(options.all_patches()) do
-		available[patch.surface_index .. ":" .. patch.resource_name] = true
+	if not options.has_expected_resource then
+		for _, patch in ipairs(options.all_patches()) do
+			available[patch.surface_index .. ":" .. patch.resource_name] = true
+		end
 	end
 	local warnings = {}
 	for _, expectation in ipairs(options.expected_resources()) do
 		for _, resource_name in ipairs(expectation.names) do
-			if not available[expectation.surface_index .. ":" .. resource_name] then
+			local found = options.has_expected_resource
+					and options.has_expected_resource(expectation, resource_name)
+				or available[expectation.surface_index .. ":" .. resource_name]
+			if not found then
 				local message = string.format(
 					"expected spawn resource %s was not discovered on surface %d",
 					resource_name,
@@ -53,6 +58,9 @@ function M.new(options)
 		state.queue, state.head, state.queued = {}, 1, {}
 		set_active(options, state, false)
 		if state.validation_pending then
+			if options.on_idle then
+				options.on_idle()
+			end
 			state.validation_warnings = validate_expected(options)
 			state.validation_pending = false
 		end

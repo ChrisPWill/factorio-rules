@@ -8,6 +8,9 @@ local Feedback = require("__factorio-rules__.runtime.feedback")
 local Overlays = require("__factorio-rules__.runtime.overlays")
 local ResourcePatches = require("__factorio-rules__.lib.resource_patches")
 local ResourceDiscovery = require("__factorio-rules__.runtime.resource_discovery")
+local SpawnPatches = require("__factorio-rules__.lib.spawn_patches")
+local Zones = require("__factorio-rules__.lib.zones")
+local NauvisMiner = require("__factorio-rules__.lib.builtin.nauvis_miner")
 
 local checks = {
 	{
@@ -128,6 +131,167 @@ local checks = {
 			assert(tracker:patch(oil_id).kind == "fluid")
 			iron.destroy()
 			oil.destroy()
+		end,
+	},
+	{
+		name = "built-in miner rule allows spawn patches and denies all off-patch paths",
+		run = function(surface)
+			local force = game.forces.player
+			local spawn = force.get_spawn_position(surface)
+			local patch_position = assert(
+				surface.find_non_colliding_position(
+					"electric-mining-drill",
+					{ x = spawn.x + 20, y = spawn.y },
+					20,
+					1
+				)
+			)
+			local denied_position = assert(
+				surface.find_non_colliding_position(
+					"electric-mining-drill",
+					{ x = spawn.x, y = spawn.y + 20 },
+					20,
+					1
+				)
+			)
+			for _, existing in
+				ipairs(surface.find_entities_filtered({
+					area = {
+						{ patch_position.x - 3, patch_position.y - 3 },
+						{ patch_position.x + 3, patch_position.y + 3 },
+					},
+					type = "resource",
+				}))
+			do
+				existing.destroy()
+			end
+			local ore = assert(surface.create_entity({
+				name = "iron-ore",
+				position = patch_position,
+				amount = 1000,
+			}))
+			local patch_state = { next_id = 1, patches = {}, cells = {}, aliases = {} }
+			local tracker = ResourcePatches.new(patch_state)
+			tracker:ingest({
+				{
+					name = ore.name,
+					surface_index = surface.index,
+					position = ore.position,
+					amount = ore.amount,
+					kind = "solid",
+				},
+			})
+			local patch_id = tracker:patch_for(surface.index, ore.name, ore.position)
+			local classifier = SpawnPatches.new({ windows = {} }, tracker)
+			local surface_reference = { index = surface.index, name = surface.name }
+			local force_reference = { index = force.index, name = force.name }
+			assert(classifier:open(surface_reference, force_reference))
+			assert(classifier:observe(surface_reference, force_reference, { patch_id }))
+			assert(classifier:close(surface_reference, force_reference))
+
+			local zones = assert(Zones.new({ NauvisMiner.zone(100) }, {
+				force_spawn = function()
+					return spawn
+				end,
+			}))
+			local compiler = Compiler.new()
+			assert(compiler:replace({ NauvisMiner.rule() }))
+			local evaluator = Evaluator.new({
+				[NauvisMiner.INSIDE_PREDICATE] = function(context)
+					return zones:contains(
+						NauvisMiner.ZONE_ID,
+						context,
+						context.payload.entity.position
+					)
+				end,
+				[NauvisMiner.SPAWN_PATCH_PREDICATE] = function(context)
+					return classifier:has_spawn_resource(
+						context.surface,
+						context.force,
+						context.payload.entity.mining_area
+					)
+				end,
+			})
+			local adapters = AdapterRegistry.new()
+			ConstructionAdapters.register(adapters)
+			local notifications = {}
+			local feedback = Feedback.new({
+				history_limit = function()
+					return 0
+				end,
+				notify_player = function(_, message)
+					notifications[#notifications + 1] = { target = "player", message = message }
+				end,
+				notify_force = function(_, message)
+					notifications[#notifications + 1] = { target = "force", message = message }
+				end,
+			})
+			local rollback = Rollback.new({
+				capture = function()
+					return {}
+				end,
+				destroy = function(boundary)
+					return boundary.entity.destroy()
+				end,
+				insert = function()
+					return 0
+				end,
+				spill = function()
+					return 0
+				end,
+			})
+			local enforcer = Construction.new({
+				adapters = adapters,
+				compiler = compiler,
+				evaluator = evaluator,
+				feedback = function(result, context, boundary)
+					feedback:emit(result, context, boundary)
+				end,
+				reject = function(boundary, _, context)
+					assert(rollback:apply(boundary, context))
+				end,
+			})
+
+			local allowed = assert(surface.create_entity({
+				name = "electric-mining-drill",
+				position = patch_position,
+				force = force,
+			}))
+			local result = assert(enforcer:handle("on_built_entity", {
+				entity = allowed,
+				player_index = 1,
+			}))
+			assert(result.outcome == "allow" and allowed.valid)
+			allowed.destroy()
+
+			local function denied_entity(source, extra, entity_definition)
+				local entity = assert(surface.create_entity(entity_definition))
+				extra.entity = entity
+				local denied = assert(enforcer:handle(source, extra))
+				assert(denied.outcome == "deny" and denied.rule_id == NauvisMiner.RULE_ID)
+				assert(not entity.valid)
+			end
+			denied_entity("on_built_entity", { player_index = 1 }, {
+				name = "electric-mining-drill",
+				position = denied_position,
+				force = force,
+			})
+			denied_entity("on_robot_built_entity", { robot = { unit_number = 1 } }, {
+				name = "electric-mining-drill",
+				position = denied_position,
+				force = force,
+			})
+			denied_entity("script_raised_built", {}, {
+				name = "entity-ghost",
+				inner_name = "electric-mining-drill",
+				position = denied_position,
+				force = force,
+			})
+			assert(#notifications == 3)
+			assert(notifications[1].target == "player")
+			assert(notifications[2].target == "force" and notifications[3].target == "force")
+			assert(notifications[1].message:find(NauvisMiner.RULE_ID, 1, true))
+			ore.destroy()
 		end,
 	},
 	{

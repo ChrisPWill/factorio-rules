@@ -29,7 +29,13 @@ function M.new(state, tracker)
 			return nil, "spawn classification is already frozen"
 		end
 		state.windows[key] = existing
-			or { status = "open", patch_ids = {}, fluid_patch_ids = {}, cells = {} }
+			or {
+				status = "open",
+				patch_ids = {},
+				fluid_patch_ids = {},
+				cells = {},
+				positions = {},
+			}
 		return true, nil
 	end
 
@@ -63,6 +69,8 @@ function M.new(state, tracker)
 		for id in pairs(window.patch_ids) do
 			for _, member in ipairs(tracker:members(id)) do
 				window.cells[cell_key(member.surface_index, member.resource_name, member)] = true
+				window.positions[table.concat({ member.surface_index, member.x, member.y }, ":")] =
+					true
 			end
 		end
 		window.status = "closed"
@@ -85,6 +93,39 @@ function M.new(state, tracker)
 			return false, "fluid resources are excluded from spawn-patch classification"
 		end
 		return not not window.cells[cell_key(surface.index, resource.name, resource.position)], nil
+	end
+
+	function classifier.has_spawn_resource(_self, surface, force, area)
+		local window = get_window(state, surface, force)
+		if not window or window.status ~= "closed" then
+			return nil, "spawn classification is not complete"
+		end
+		local left = math.ceil(area.left_top.x)
+		local right = math.ceil(area.right_bottom.x) - 1
+		local top = math.ceil(area.left_top.y)
+		local bottom = math.ceil(area.right_bottom.y) - 1
+		for y = top, bottom do
+			for x = left, right do
+				if window.positions[table.concat({ surface.index, x, y }, ":")] then
+					return true, nil
+				end
+			end
+		end
+		return false, nil
+	end
+
+	function classifier.has_resource_name(_self, surface, force, resource_name)
+		local window = get_window(state, surface, force)
+		if not window or window.status ~= "closed" then
+			return nil, "spawn classification is not complete"
+		end
+		local prefix = surface.index .. ":" .. resource_name .. ":"
+		for key in pairs(window.cells) do
+			if key:sub(1, #prefix) == prefix then
+				return true, nil
+			end
+		end
+		return false, nil
 	end
 
 	function classifier.status(_self, surface, force)

@@ -10,6 +10,7 @@ local function entity(overrides)
 		direction = 2,
 		unit_number = 99,
 		quality = { name = "normal" },
+		prototype = { mining_drill_radius = 2.5 },
 		surface = { index = 1, name = "nauvis" },
 		force = { index = 1, name = "player" },
 	}
@@ -63,6 +64,7 @@ return {
 				name = "entity-ghost",
 				ghost_name = "electric-mining-drill",
 				ghost_type = "mining-drill",
+				ghost_prototype = { mining_drill_radius = 2.5 },
 			})
 			local context, boundary = registry():adapt("on_robot_built_entity", {
 				tick = 2,
@@ -71,6 +73,7 @@ return {
 			})
 			assert(context.payload.entity.ghost_type == "mining-drill")
 			assert(context.payload.entity.ghost_name == "electric-mining-drill")
+			assert(context.payload.entity.mining_area.left_top.x == 10)
 			assert(boundary.entity == raw_entity)
 		end,
 	},
