@@ -237,6 +237,23 @@ function M.register(runtime)
 		clear_override = function(id)
 			return rule_registry:clear_override(id)
 		end,
+		delete_unused_zones = function()
+			local kept, removed =
+				Zones.delete_unused(storage().rules.zones, assert(rule_registry:effective()))
+			for _, zone_id in ipairs(removed) do
+				storage().overlays.forced[zone_id] = nil
+			end
+			storage().rules.zones = kept
+			return true, nil
+		end,
+		zones = function()
+			return storage().rules.zones or {}
+		end,
+		zone_summary = function()
+			local _, removed =
+				Zones.delete_unused(storage().rules.zones, assert(rule_registry:effective()))
+			return { unused = #removed }
+		end,
 		rebuild = configure_policy,
 	})
 	zone_editor = ZoneEditing.new({
@@ -244,7 +261,9 @@ function M.register(runtime)
 			return game.get_player(index)
 		end,
 		next_id = function()
-			return "factorio-rules:zone-" .. tostring(#storage().rules.zones + 1)
+			local id = "factorio-rules:zone-" .. tostring(storage().rules.next_zone_id)
+			storage().rules.next_zone_id = storage().rules.next_zone_id + 1
+			return id
 		end,
 		save = function(zone)
 			storage().rules.zones[#storage().rules.zones + 1] = zone

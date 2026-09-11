@@ -47,6 +47,10 @@ function M.new(options)
 		return true, nil
 	end
 
+	function editor.delete_unused(_self)
+		return options.delete_unused()
+	end
+
 	return editor
 end
 

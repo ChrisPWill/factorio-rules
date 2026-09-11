@@ -112,4 +112,13 @@ return {
 			assert(contains(errors, "must not mix array indexes and string keys"))
 		end,
 	},
+	{
+		name = "accepts persisted zone references on rules",
+		run = function()
+			local input = valid_rule()
+			input.zone_ids = { "test:zone" }
+			local rule = assert(schema.normalize(input))
+			assert(rule.zone_ids[1] == "test:zone")
+		end,
+	},
 }

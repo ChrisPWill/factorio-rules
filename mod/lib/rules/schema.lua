@@ -132,6 +132,15 @@ function M.normalize(input)
 	if type(rule.scope) ~= "table" then
 		add_error(errors, "rule.scope", "must be a data table")
 	end
+	if rule.zone_ids ~= nil then
+		if type(rule.zone_ids) ~= "table" then
+			add_error(errors, "rule.zone_ids", "must be an array")
+		else
+			for index, zone_id in ipairs(rule.zone_ids) do
+				require_string(zone_id, "rule.zone_ids[" .. index .. "]", errors)
+			end
+		end
+	end
 
 	if rule.when == nil and rule.unless == nil then
 		add_error(errors, "rule.when", "must define when or unless")

@@ -9,6 +9,17 @@ end
 
 return {
 	{
+		name = "deletes only unreferenced custom zones",
+		run = function()
+			local kept, removed = Zones.delete_unused({
+				{ id = "test:used" },
+				{ id = "test:unused" },
+			}, { { zone_ids = { "test:used" } } })
+			assert(#kept == 1 and kept[1].id == "test:used")
+			assert(#removed == 1 and removed[1] == "test:unused")
+		end,
+	},
+	{
 		name = "checks circle boundaries with squared distance",
 		run = function()
 			local zones = assert(Zones.new({

@@ -22,6 +22,7 @@ local INITIALIZERS = {
 			source_versions = {},
 			override_versions = {},
 			zones = {},
+			next_zone_id = 1,
 		}
 	end,
 	violations = function()
@@ -60,6 +61,16 @@ function M.initialize(target)
 	target.rules.source_versions = target.rules.source_versions or {}
 	target.rules.override_versions = target.rules.override_versions or {}
 	target.rules.zones = target.rules.zones or {}
+	target.rules.next_zone_id = target.rules.next_zone_id or 1
+	for index = 1, #target.rules.zones do
+		local zone = target.rules.zones[index]
+		local number = tonumber(
+			type(zone.id) == "string" and zone.id:match("^factorio%-rules:zone%-(%d+)$") or nil
+		)
+		if number and number >= target.rules.next_zone_id then
+			target.rules.next_zone_id = number + 1
+		end
+	end
 	target.violations = target.violations or INITIALIZERS.violations()
 	target.overlays = target.overlays or INITIALIZERS.overlays()
 	target.resource_patches = target.resource_patches or INITIALIZERS.resource_patches()

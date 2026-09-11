@@ -61,6 +61,17 @@ local checks = {
 		end,
 	},
 	{
+		name = "custom zones keep referenced entries and delete unused entries",
+		run = function()
+			local kept, removed = Zones.delete_unused({
+				{ id = "integration:used" },
+				{ id = "integration:unused" },
+			}, { { zone_ids = { "integration:used" } } })
+			assert(#kept == 1 and kept[1].id == "integration:used")
+			assert(#removed == 1 and removed[1] == "integration:unused")
+		end,
+	},
+	{
 		name = "extension predicate receives constrained context and services",
 		run = function()
 			local extensions = Extensions.new()

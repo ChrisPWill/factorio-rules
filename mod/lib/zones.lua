@@ -2,6 +2,29 @@ local serializable = require("lib.serializable")
 
 local M = {}
 
+function M.referenced_ids(rules)
+	local referenced = {}
+	for _, rule in ipairs(rules or {}) do
+		for _, zone_id in ipairs(rule.zone_ids or {}) do
+			referenced[zone_id] = true
+		end
+	end
+	return referenced
+end
+
+function M.delete_unused(definitions, rules)
+	local referenced = M.referenced_ids(rules)
+	local kept, removed = {}, {}
+	for _, zone in ipairs(definitions or {}) do
+		if referenced[zone.id] then
+			kept[#kept + 1] = zone
+		else
+			removed[#removed + 1] = zone.id
+		end
+	end
+	return kept, removed
+end
+
 local function add_error(errors, path, message)
 	errors[#errors + 1] = path .. ": " .. message
 end
