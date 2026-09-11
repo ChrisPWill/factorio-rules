@@ -1,7 +1,7 @@
 # Factorio Rules
 
-A configurable rules mod for Factorio **2.0**. This repository currently contains
-the development foundation; gameplay rules will follow in separate stories.
+A configurable rules mod for Factorio **2.0**. The first built-in policy prevents
+mining drills near the Nauvis spawn unless they overlap an original resource patch.
 
 ## Build and install
 
@@ -35,10 +35,12 @@ GitHub Actions runs the same lint command for pull requests and pushes to `main`
 
 - `mod/settings.lua` defines configuration prototypes.
 - `mod/data.lua` owns data-stage prototype definitions.
-- `mod/control.lua` registers runtime lifecycle handlers; `mod/runtime/` owns
-  Factorio runtime interactions.
-- Future `mod/lib/` modules must be pure Lua: no Factorio globals, so rule and
-  geometry logic can run in unit tests without the game.
+- `mod/control.lua` passes Factorio's runtime APIs to the application boundary.
+  `mod/runtime/application.lua` owns service construction, policy coordination,
+  lifecycle behavior, and event registration; the other runtime modules own their
+  individual Factorio interactions.
+- `mod/lib/` modules are pure Lua: they use no Factorio globals, so rule and
+  geometry logic run in unit tests without the game.
 
 Persistent data belongs under `storage.rules`. Its `schema_version` starts at 1;
 future migrations must preserve saved user data. Initialize storage only during

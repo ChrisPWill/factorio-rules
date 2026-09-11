@@ -59,13 +59,12 @@ for _, enabled in ipairs({ false, true }) do
 		name = "debug logging enabled=" .. tostring(enabled),
 		run = function()
 			local messages = {}
-			local env = {
-				settings = { global = { ["factorio-rules-debug"] = { value = enabled } } },
-				log = function(message)
+			local logger = require("runtime.logger").new(
+				{ global = { ["factorio-rules-debug"] = { value = enabled } } },
+				function(message)
 					messages[#messages + 1] = message
-				end,
-			}
-			local logger = assert(loadfile("mod/runtime/logger.lua", "t", env))()
+				end
+			)
 			logger.debug("test")
 			assert(#messages == (enabled and 1 or 0))
 			if enabled then
