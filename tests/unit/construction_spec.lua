@@ -137,4 +137,29 @@ return {
 			assert(#registered == 4)
 		end,
 	},
+	{
+		name = "deduplicates cooperative and script-raised enforcement in the same tick",
+		run = function()
+			local enforcer, recorded, rejected = setup({ {} }, "deny")
+			local subject = {
+				valid = true,
+				type = "assembling-machine",
+				name = "assembling-machine-1",
+				unit_number = 17,
+				position = { x = 4, y = 5 },
+				surface = { index = 1 },
+			}
+			local api = Construction.cooperative_interface(enforcer, function()
+				return 50
+			end)
+			local first = assert(api.enforce_construction(subject))
+			local duplicate = assert(enforcer:handle("script_raised_built", {
+				entity = subject,
+				tick = 50,
+			}))
+			assert(first.outcome == "deny")
+			assert(duplicate.outcome == "ignored" and duplicate.reason == "duplicate-event")
+			assert(#recorded == 1 and #rejected == 1)
+		end,
+	},
 }

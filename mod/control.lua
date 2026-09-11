@@ -33,6 +33,12 @@ local enforcer = Construction.new({
 	end,
 })
 Construction.register_construction_events(script, defines, enforcer)
+remote.add_interface(
+	"factorio_rules",
+	Construction.cooperative_interface(enforcer, function()
+		return game.tick
+	end)
+)
 
 script.on_init(function()
 	state.initialize()

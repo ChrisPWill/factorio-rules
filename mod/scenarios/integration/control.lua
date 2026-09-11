@@ -130,6 +130,23 @@ local checks = {
 			assert(result.outcome == "deny", "mining drill ghost should be denied")
 			assert(not ghost.valid, "denied mining drill ghost should be removed")
 			assert(#recorded == 3, "ghost denial should be recorded")
+
+			local scripted = assert(surface.create_entity({
+				name = "stone-furnace",
+				position = { 8, 2 },
+				force = "player",
+			}))
+			local cooperative = Construction.cooperative_interface(enforcer, function()
+				return 77
+			end)
+			result = assert(cooperative.enforce_construction(scripted))
+			assert(result.outcome == "allow", "cooperative script build should be evaluated")
+			local duplicate = assert(enforcer:handle("script_raised_built", {
+				entity = scripted,
+				tick = 77,
+			}))
+			assert(duplicate.reason == "duplicate-event", "script build should be evaluated once")
+			scripted.destroy()
 		end,
 	},
 }
