@@ -14,6 +14,8 @@ function M.new(options)
 	assert(type(options.adapters) == "table", "construction adapters are required")
 	assert(type(options.compiler) == "table", "construction compiler is required")
 	assert(type(options.evaluator) == "table", "construction evaluator is required")
+	local ghost_policy = options.ghost_policy or "evaluate"
+	assert(ghost_policy == "evaluate" or ghost_policy == "ignore", "invalid ghost policy")
 	local enforcer = {}
 
 	function enforcer.handle(_self, source, event)
@@ -23,6 +25,16 @@ function M.new(options)
 		local context, boundary, adapter_errors = options.adapters:adapt(source, event)
 		if not context then
 			return nil, boundary, adapter_errors
+		end
+		if context.payload.entity.type == "entity-ghost" and ghost_policy == "ignore" then
+			return {
+				outcome = "allow",
+				reason = "ghost-ignored",
+				matched_rule_ids = {},
+				actions = {},
+			},
+				boundary,
+				nil
 		end
 		local candidates = options.compiler:candidates(context)
 		if #candidates == 0 then
@@ -44,16 +56,37 @@ function M.new(options)
 	return enforcer
 end
 
-function M.register_player_event(script_api, defines_api, enforcer)
-	assert(script_api and type(script_api.on_event) == "function")
-	assert(defines_api.events and defines_api.events.on_built_entity)
-	script_api.on_event(defines_api.events.on_built_entity, function(event)
-		local result, _, errors = enforcer:handle("on_built_entity", event)
+local function register_event(script_api, event_id, source, enforcer)
+	script_api.on_event(event_id, function(event)
+		local result, _, errors = enforcer:handle(source, event)
 		if errors then
 			error(table.concat(errors, "; "))
 		end
 		return result
 	end)
+end
+
+function M.register_player_event(script_api, defines_api, enforcer)
+	assert(script_api and type(script_api.on_event) == "function")
+	assert(defines_api.events and defines_api.events.on_built_entity)
+	register_event(script_api, defines_api.events.on_built_entity, "on_built_entity", enforcer)
+end
+
+function M.register_construction_events(script_api, defines_api, enforcer)
+	assert(script_api and type(script_api.on_event) == "function")
+	assert(defines_api and defines_api.events)
+	local events = {
+		{ "on_built_entity", "on_built_entity" },
+		{ "on_robot_built_entity", "on_robot_built_entity" },
+		{ "script_raised_built", "script_raised_built" },
+		{ "script_raised_revive", "script_raised_revive" },
+	}
+	for _, entry in ipairs(events) do
+		local event_id = defines_api.events[entry[1]]
+		if event_id then
+			register_event(script_api, event_id, entry[2], enforcer)
+		end
+	end
 end
 
 return M

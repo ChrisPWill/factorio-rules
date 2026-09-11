@@ -66,6 +66,18 @@ local checks = {
 			assert(result.outcome == "deny", "mining drill should be denied")
 			assert(not entity.valid, "denied mining drill should be removed")
 			assert(#recorded == 1 and recorded[1].rule_id == "integration:deny-mining-drills")
+
+			local ghost = surface.create_entity({
+				name = "entity-ghost",
+				inner_name = "electric-mining-drill",
+				position = { 4, 0 },
+				force = "player",
+			})
+			assert(ghost and ghost.valid, "electric-mining-drill ghost was not created")
+			result = assert(enforcer:handle("script_raised_built", { entity = ghost }))
+			assert(result.outcome == "deny", "mining drill ghost should be denied")
+			assert(not ghost.valid, "denied mining drill ghost should be removed")
+			assert(#recorded == 2, "ghost denial should be recorded")
 		end,
 	},
 }

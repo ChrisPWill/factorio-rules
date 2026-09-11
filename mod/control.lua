@@ -20,7 +20,7 @@ local enforcer = Construction.new({
 		boundary.entity.destroy()
 	end,
 })
-Construction.register_player_event(script, defines, enforcer)
+Construction.register_construction_events(script, defines, enforcer)
 
 script.on_init(function()
 	state.initialize()

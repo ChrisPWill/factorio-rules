@@ -4,12 +4,16 @@ local function entity()
 	return { valid = true }
 end
 
-local function setup(candidates, outcome)
+local function setup(candidates, outcome, ghost_policy)
 	local recorded, rejected = {}, {}
 	local adapters = {
-		adapt = function(_, source, event)
-			assert(source == "on_built_entity" and event.entity)
-			return { payload = {}, domain = "construction", kind = "entity-built" }, {
+		adapt = function(_, _source, event)
+			assert(event.entity)
+			return {
+				payload = { entity = event.entity },
+				domain = "construction",
+				kind = "entity-built",
+			}, {
 				entity = event.entity,
 			}
 		end,
@@ -36,6 +40,7 @@ local function setup(candidates, outcome)
 		adapters = adapters,
 		compiler = compiler,
 		evaluator = evaluator,
+		ghost_policy = ghost_policy,
 		record = function(result)
 			recorded[#recorded + 1] = result
 		end,
@@ -85,6 +90,51 @@ return {
 				enforcer
 			)
 			assert(event_id == 42 and callback({ entity = entity() }).outcome == "allow")
+		end,
+	},
+	{
+		name = "evaluates robot builds through the same path",
+		run = function()
+			local enforcer, recorded = setup({ {} }, "deny")
+			local result = assert(enforcer:handle("on_robot_built_entity", { entity = entity() }))
+			assert(result.outcome == "deny" and #recorded == 1)
+		end,
+	},
+	{
+		name = "can ignore ghosts explicitly while evaluating completed entities",
+		run = function()
+			local ghost = { valid = true, type = "entity-ghost" }
+			local enforcer, recorded = setup({ {} }, "deny")
+			local result = assert(enforcer:handle("script_raised_built", { entity = ghost }))
+			assert(result.outcome == "deny")
+			local ignoring, ignored_recorded = setup({ {} }, "deny", "ignore")
+			result = assert(ignoring:handle("script_raised_built", { entity = ghost }))
+			assert(result.outcome == "allow")
+			assert(#recorded == 1 and #ignored_recorded == 0)
+		end,
+	},
+	{
+		name = "registers all construction event sources",
+		run = function()
+			local registered = {}
+			local script_api = {
+				on_event = function(id)
+					registered[#registered + 1] = id
+				end,
+			}
+			Construction.register_construction_events(script_api, {
+				events = {
+					on_built_entity = 1,
+					on_robot_built_entity = 2,
+					script_raised_built = 3,
+					script_raised_revive = 4,
+				},
+			}, {
+				handle = function()
+					return { outcome = "allow" }
+				end,
+			})
+			assert(#registered == 4)
 		end,
 	},
 }
