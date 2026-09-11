@@ -4,6 +4,7 @@ local Compiler = require("__factorio-rules__.lib.rules.compiler")
 local Evaluator = require("__factorio-rules__.lib.rules.evaluator")
 local Construction = require("__factorio-rules__.runtime.construction")
 local Rollback = require("__factorio-rules__.runtime.rollback")
+local Feedback = require("__factorio-rules__.runtime.feedback")
 
 local checks = {
 	{
@@ -74,6 +75,20 @@ local checks = {
 				end,
 			})
 			local recorded = {}
+			local notifications = {}
+			local feedback = Feedback.new({
+				history_limit = function()
+					return 0
+				end,
+				notify_player = function(index, message)
+					notifications[#notifications + 1] =
+						{ target = "player", index = index, message = message }
+				end,
+				notify_force = function(index, message)
+					notifications[#notifications + 1] =
+						{ target = "force", index = index, message = message }
+				end,
+			})
 			local last_rollback, last_boundary, last_context
 			local enforcer = Construction.new({
 				adapters = adapters,
@@ -81,6 +96,9 @@ local checks = {
 				evaluator = evaluator,
 				record = function(result)
 					recorded[#recorded + 1] = result
+				end,
+				feedback = function(result, context, boundary)
+					feedback:emit(result, context, boundary)
 				end,
 				reject = function(boundary, _, context)
 					last_boundary, last_context = boundary, context
@@ -93,7 +111,11 @@ local checks = {
 				force = "player",
 			})
 			assert(entity and entity.valid, "electric-mining-drill was not created")
-			local result = assert(enforcer:handle("on_built_entity", { entity = entity }))
+			local result = assert(enforcer:handle("on_built_entity", {
+				entity = entity,
+				player_index = 1,
+				tick = 1,
+			}))
 			assert(result.outcome == "deny", "mining drill should be denied")
 			assert(not entity.valid, "denied mining drill should be removed")
 			assert(last_rollback.refunded == 1 and last_rollback.spilled == 0)
@@ -102,6 +124,8 @@ local checks = {
 			assert(repeated.status == "already-reverted")
 			assert(refund_inventory.get_item_count("electric-mining-drill") == 1)
 			assert(#recorded == 1 and recorded[1].rule_id == "integration:deny-mining-drills")
+			assert(notifications[1].target == "player" and notifications[1].index == 1)
+			assert(notifications[1].message:find("integration:deny-mining-drills", 1, true))
 
 			refund_inventory.insert({ name = "electric-mining-drill", count = 1000 })
 			refund_inventory.insert({ name = "stone", count = 100000 })
@@ -119,6 +143,19 @@ local checks = {
 			})
 			assert(#spilled > 0, "overflow refund should spill on the ground")
 
+			local robot_build = assert(surface.create_entity({
+				name = "electric-mining-drill",
+				position = { 8, 0 },
+				force = "player",
+			}))
+			result = assert(enforcer:handle("on_robot_built_entity", {
+				entity = robot_build,
+				robot = { unit_number = 99 },
+				tick = 2,
+			}))
+			assert(result.outcome == "deny" and not robot_build.valid)
+			assert(notifications[#notifications].target == "force")
+
 			local ghost = surface.create_entity({
 				name = "entity-ghost",
 				inner_name = "electric-mining-drill",
@@ -129,7 +166,8 @@ local checks = {
 			result = assert(enforcer:handle("script_raised_built", { entity = ghost }))
 			assert(result.outcome == "deny", "mining drill ghost should be denied")
 			assert(not ghost.valid, "denied mining drill ghost should be removed")
-			assert(#recorded == 3, "ghost denial should be recorded")
+			assert(#recorded == 4, "manual, robot, and ghost denials should be recorded")
+			assert(notifications[#notifications].target == "force")
 
 			local scripted = assert(surface.create_entity({
 				name = "stone-furnace",

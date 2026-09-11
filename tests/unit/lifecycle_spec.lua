@@ -9,13 +9,16 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 			local state = assert(loadfile("mod/runtime/state.lua", "t", env))()
 			state.initialize()
 			assert(persisted.rules.schema_version == 1)
+			assert(type(persisted.violations) == "table")
 			if existing then
 				assert(persisted.rules == existing)
 				assert(persisted.rules.saved_rule == "preserved")
 			end
 			local first = persisted.rules
+			local violations = persisted.violations
 			state.initialize()
 			assert(persisted.rules == first, "Initialization must be idempotent")
+			assert(persisted.violations == violations)
 		end,
 	}
 end

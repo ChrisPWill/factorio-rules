@@ -6,6 +6,7 @@ local Compiler = require("lib.rules.compiler")
 local Evaluator = require("lib.rules.evaluator")
 local Construction = require("runtime.construction")
 local Rollback = require("runtime.rollback")
+local Feedback = require("runtime.feedback")
 
 local adapters = AdapterRegistry.new()
 ConstructionAdapters.register(adapters)
@@ -18,12 +19,29 @@ local rollback = Rollback.factorio({
 		return game.get_surface(index)
 	end,
 }, defines)
+local feedback = Feedback.factorio({
+	history = function()
+		return storage.violations
+	end,
+	history_limit = function()
+		return settings.global["factorio-rules-violation-history-limit"].value
+	end,
+	get_player = function(index)
+		return game.get_player(index)
+	end,
+	get_force = function(index)
+		return game.forces[index]
+	end,
+})
 local enforcer = Construction.new({
 	adapters = adapters,
 	compiler = compiler,
 	evaluator = Evaluator.new({}),
 	record = function(result)
 		storage.last_enforcement = result
+	end,
+	feedback = function(result, context, boundary)
+		feedback:emit(result, context, boundary)
 	end,
 	reject = function(boundary, _, context)
 		local _, errors = rollback:apply(boundary, context)

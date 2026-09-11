@@ -77,6 +77,9 @@ function M.new(options)
 		if options.record then
 			options.record(public_result(result), context)
 		end
+		if options.feedback then
+			options.feedback(result, context, boundary)
+		end
 		if duplicate_key then
 			processed[duplicate_key] = true
 		end
