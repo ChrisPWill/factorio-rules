@@ -1,5 +1,23 @@
 data:extend({
 	{
+		type = "selection-tool",
+		name = "factorio-rules-zone-selector",
+		icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x56.png",
+		icon_size = 56,
+		select = {
+			border_color = { 0.2, 0.8, 1 },
+			mode = { "blueprint" },
+			cursor_box_type = "copy",
+		},
+		alt_select = {
+			border_color = { 0.2, 1, 0.4 },
+			mode = { "blueprint" },
+			cursor_box_type = "copy",
+		},
+		stack_size = 1,
+		flags = { "only-in-cursor" },
+	},
+	{
 		type = "shortcut",
 		name = "factorio-rules-toggle-zones",
 		action = "lua",
@@ -14,10 +32,20 @@ data:extend({
 		type = "shortcut",
 		name = "factorio-rules-manage-rules",
 		action = "lua",
-		icon = "__base__/graphics/icons/shortcut-toolbar/mip/blueprint-book-x56.png",
+		icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x56.png",
 		icon_size = 56,
-		small_icon = "__base__/graphics/icons/shortcut-toolbar/mip/blueprint-book-x24.png",
+		small_icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x24.png",
 		small_icon_size = 24,
 		order = "z[factorio-rules]-a",
+	},
+	{
+		type = "shortcut",
+		name = "factorio-rules-select-zone",
+		action = "lua",
+		icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x56.png",
+		icon_size = 56,
+		small_icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x24.png",
+		small_icon_size = 24,
+		order = "z[factorio-rules]-b",
 	},
 })

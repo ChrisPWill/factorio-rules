@@ -16,6 +16,7 @@ local NauvisMiner = require("lib.builtin.nauvis_miner")
 local RuleRegistry = require("lib.rules.registry")
 local Extensions = require("runtime.extensions")
 local RuleUI = require("runtime.rule_ui")
+local ZoneEditing = require("runtime.zone_editing")
 
 local M = {}
 
@@ -139,9 +140,13 @@ function M.register(runtime)
 	end
 
 	local function zone_registry()
-		return assert(Zones.new({
+		local definitions = {
 			NauvisMiner.zone(settings.global["factorio-rules-nauvis-spawn-radius"].value),
-		}, {
+		}
+		for _, zone in ipairs(storage().rules.zones or {}) do
+			definitions[#definitions + 1] = zone
+		end
+		return assert(Zones.new(definitions, {
 			force_spawn = function(surface_reference, force_reference)
 				local surface =
 					assert(game.get_surface(surface_reference.index), "surface unavailable")
@@ -152,6 +157,7 @@ function M.register(runtime)
 	end
 
 	local zones
+	local zone_editor
 
 	local function overlay_entries()
 		local entries = {}
@@ -171,6 +177,25 @@ function M.register(runtime)
 					surface = target.surface,
 					force = target.force,
 				}
+			end
+		end
+		for _, definition in ipairs(storage().rules.zones or {}) do
+			for _, target in ipairs(spawn_targets()) do
+				local zone, center = zones:resolve(definition.id, target)
+				if zone then
+					entries[#entries + 1] = {
+						key = definition.id
+							.. "@"
+							.. target.surface.index
+							.. ":"
+							.. target.force.index,
+						zone_id = zone.id,
+						shape = zone.shape,
+						center = center,
+						surface = target.surface,
+						force = target.force,
+					}
+				end
 			end
 		end
 		return entries
@@ -211,6 +236,19 @@ function M.register(runtime)
 		end,
 		clear_override = function(id)
 			return rule_registry:clear_override(id)
+		end,
+		rebuild = configure_policy,
+	})
+	zone_editor = ZoneEditing.new({
+		get_player = function(index)
+			return game.get_player(index)
+		end,
+		next_id = function()
+			return "factorio-rules:zone-" .. tostring(#storage().rules.zones + 1)
+		end,
+		save = function(zone)
+			storage().rules.zones[#storage().rules.zones + 1] = zone
+			return true
 		end,
 		rebuild = configure_policy,
 	})
@@ -447,8 +485,20 @@ function M.register(runtime)
 			overlays:toggle(event.player_index)
 		elseif event.prototype_name == RuleUI.SHORTCUT_NAME then
 			rule_ui:open(event.player_index)
+		elseif event.prototype_name == ZoneEditing.SHORTCUT_NAME then
+			zone_editor:begin(event.player_index)
 		end
 	end)
+	if defines.events.on_player_selected_area then
+		script.on_event(defines.events.on_player_selected_area, function(event)
+			zone_editor:select(event)
+		end)
+	end
+	if defines.events.on_player_alt_selected_area then
+		script.on_event(defines.events.on_player_alt_selected_area, function(event)
+			zone_editor:select(event)
+		end)
+	end
 	if defines.events.on_gui_click then
 		script.on_event(defines.events.on_gui_click, function(event)
 			rule_ui:handle_click(event)

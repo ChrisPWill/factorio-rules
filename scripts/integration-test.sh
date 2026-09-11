@@ -29,6 +29,26 @@ cat > "$work_dir/mods/mod-list.json" <<'JSON'
 {"mods":[{"name":"base","enabled":true},{"name":"factorio-rules","enabled":true},{"name":"space-age","enabled":true},{"name":"quality","enabled":true},{"name":"elevated-rails","enabled":true}]}
 JSON
 
+load_log="$work_dir/factorio-load.log"
+load_factorio_bin="${FACTORIO_GUI_BIN:-$factorio_bin}"
+load_arguments=(--dump-data)
+if [[ -n "${FACTORIO_GUI_BIN:-}" ]]; then
+	load_arguments=(--dump-icon-sprites)
+fi
+if ! "$load_factorio_bin" \
+	--config "$config_file" \
+	--mod-directory "$work_dir/mods" \
+	"${load_arguments[@]}" >"$load_log" 2>&1; then
+	cat "$load_log"
+	echo "Factorio failed while loading mod prototypes." >&2
+	exit 1
+fi
+cat "$load_log"
+if grep -Fq "Error loading mods" "$load_log"; then
+	echo "Factorio reported a mod loading failure." >&2
+	exit 1
+fi
+
 log_file="$work_dir/factorio.log"
 "$factorio_bin" \
 	--config "$config_file" \
@@ -55,6 +75,10 @@ fi
 wait "$factorio_pid" || true
 cat "$log_file"
 
+if grep -Fq "Error loading mods" "$log_file"; then
+	echo "Factorio reported a mod loading failure." >&2
+	exit 1
+fi
 if [[ "$finished" != true ]]; then
 	echo "Factorio integration tests did not reach their success marker." >&2
 	exit 1
