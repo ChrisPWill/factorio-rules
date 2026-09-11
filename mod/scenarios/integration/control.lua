@@ -6,6 +6,8 @@ local Construction = require("__factorio-rules__.runtime.construction")
 local Rollback = require("__factorio-rules__.runtime.rollback")
 local Feedback = require("__factorio-rules__.runtime.feedback")
 local Overlays = require("__factorio-rules__.runtime.overlays")
+local ResourcePatches = require("__factorio-rules__.lib.resource_patches")
+local ResourceDiscovery = require("__factorio-rules__.runtime.resource_discovery")
 
 local checks = {
 	{
@@ -62,6 +64,70 @@ local checks = {
 			assert(overlay_state.objects["integration:rectangle@1"].object.id == rectangle_id)
 			assert(overlays:replace({}))
 			assert(not circle.valid and not rectangle.valid)
+		end,
+	},
+	{
+		name = "incremental discovery scans real solid and fluid resources",
+		run = function(surface)
+			local iron = assert(surface.create_entity({
+				name = "iron-ore",
+				position = { 20, 20 },
+				amount = 1000,
+			}))
+			local oil = assert(surface.create_entity({
+				name = "crude-oil",
+				position = { 22, 20 },
+				amount = 100000,
+			}))
+			local patch_state = { next_id = 1, patches = {}, cells = {}, aliases = {} }
+			local tracker = ResourcePatches.new(patch_state)
+			local discovery_state = {
+				queue = {},
+				head = 1,
+				queued = {},
+				processed = {},
+				active = false,
+				validation_pending = false,
+				validation_warnings = {},
+			}
+			local active
+			local discovery = ResourceDiscovery.new({
+				state = function()
+					return discovery_state
+				end,
+				scan = ResourceDiscovery.factorio_scanner(function()
+					return surface
+				end),
+				ingest = function(resources)
+					return tracker:ingest(resources)
+				end,
+				patch_for = function(index, name, position)
+					return tracker:patch_for(index, name, position)
+				end,
+				all_patches = function()
+					return tracker.all()
+				end,
+				expected_resources = function()
+					return {}
+				end,
+				warn = function() end,
+				set_active = function(value)
+					active = value
+				end,
+				reset_cache = function() end,
+			})
+			assert(discovery:enqueue({
+				surface_index = surface.index,
+				chunk = { x = 0, y = 0 },
+				area = { { 19, 19 }, { 23, 21 } },
+			}))
+			assert(active and discovery:process(1) == 1 and not active)
+			local iron_id = discovery:cached_patch_for(surface.index, "iron-ore", iron.position)
+			local oil_id = discovery:cached_patch_for(surface.index, "crude-oil", oil.position)
+			assert(tracker:patch(iron_id).kind == "solid")
+			assert(tracker:patch(oil_id).kind == "fluid")
+			iron.destroy()
+			oil.destroy()
 		end,
 	},
 	{

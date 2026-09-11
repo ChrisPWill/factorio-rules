@@ -8,6 +8,17 @@ function M.initialize()
 	storage.resource_patches = storage.resource_patches
 		or { schema_version = 1, next_id = 1, patches = {}, cells = {}, aliases = {} }
 	storage.spawn_patches = storage.spawn_patches or { schema_version = 1, windows = {} }
+	storage.resource_discovery = storage.resource_discovery
+		or {
+			schema_version = 1,
+			queue = {},
+			head = 1,
+			queued = {},
+			processed = {},
+			active = false,
+			validation_pending = false,
+			validation_warnings = {},
+		}
 end
 
 return M

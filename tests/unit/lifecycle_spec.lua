@@ -13,6 +13,7 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 			assert(type(persisted.overlays.players) == "table")
 			assert(persisted.resource_patches.schema_version == 1)
 			assert(persisted.spawn_patches.schema_version == 1)
+			assert(persisted.resource_discovery.schema_version == 1)
 			if existing then
 				assert(persisted.rules == existing)
 				assert(persisted.rules.saved_rule == "preserved")
@@ -22,12 +23,14 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 			local overlays = persisted.overlays
 			local resource_patches = persisted.resource_patches
 			local spawn_patches = persisted.spawn_patches
+			local resource_discovery = persisted.resource_discovery
 			state.initialize()
 			assert(persisted.rules == first, "Initialization must be idempotent")
 			assert(persisted.violations == violations)
 			assert(persisted.overlays == overlays)
 			assert(persisted.resource_patches == resource_patches)
 			assert(persisted.spawn_patches == spawn_patches)
+			assert(persisted.resource_discovery == resource_discovery)
 		end,
 	}
 end

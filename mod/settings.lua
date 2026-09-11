@@ -15,4 +15,12 @@ data:extend({
 		maximum_value = 200,
 		order = "b",
 	},
+	{
+		type = "string-setting",
+		name = "factorio-rules-expected-spawn-resources",
+		setting_type = "runtime-global",
+		default_value = "iron-ore,copper-ore,coal,stone",
+		allow_blank = true,
+		order = "c",
+	},
 })
