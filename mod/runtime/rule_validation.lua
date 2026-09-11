@@ -1,10 +1,7 @@
 local serializable = require("lib.serializable")
+local Event = require("lib.rules.event")
 
 local M = {}
-
-local function event_key(event)
-	return event.domain .. "\0" .. event.kind
-end
 
 local function add_reference(references, kind, name)
 	references[#references + 1] = { kind = kind, name = name }
@@ -26,7 +23,7 @@ end
 
 local function rule_references(rule)
 	local references = {
-		{ kind = "event", name = event_key(rule.event) },
+		{ kind = "event", name = Event.key(rule.event) },
 	}
 	visit_condition(rule.when, references)
 	for _, action in ipairs(rule.effects.actions) do

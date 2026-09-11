@@ -98,6 +98,49 @@ return {
 		end,
 	},
 	{
+		name = "keeps compiled candidates consistent with direct selection",
+		run = function()
+			local selected = rule("test:selected", 1, {
+				selector = {
+					entity_types = { "mining-drill" },
+					entity_names = { "electric-mining-drill" },
+					sources = { "player" },
+				},
+				scope = { surfaces = { "nauvis" }, forces = { "player" } },
+			})
+			local compiler = compile({ selected })
+			local evaluator = Evaluator.new({
+				allowed = function()
+					return true
+				end,
+			})
+			local contexts = {
+				context(),
+				context({ kind = "entity-removed" }),
+				context({ payload = { source = "player", entity = { type = "furnace" } } }),
+				context({
+					payload = {
+						source = "player",
+						entity = { type = "mining-drill", name = "burner-mining-drill" },
+					},
+				}),
+				context({
+					payload = {
+						source = "robot",
+						entity = { type = "mining-drill", name = "electric-mining-drill" },
+					},
+				}),
+				context({ surface = { index = 2, name = "vulcanus" } }),
+				context({ force = { index = 2, name = "enemy" } }),
+			}
+			for _, candidate in ipairs(contexts) do
+				local compiled = #compiler:candidates(candidate) == 1
+				local direct = assert(evaluator:evaluate({ selected }, candidate)).outcome == "deny"
+				assert(compiled == direct)
+			end
+		end,
+	},
+	{
 		name = "preserves priority and ID ordering",
 		run = function()
 			local compiler = compile({

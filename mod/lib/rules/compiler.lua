@@ -1,71 +1,8 @@
 local Selector = require("lib.rules.selector")
+local Event = require("lib.rules.event")
 local serializable = require("lib.serializable")
 
 local M = {}
-
-local function reference_values(reference)
-	local values = {}
-	if reference then
-		if reference.name ~= nil then
-			values[#values + 1] = reference.name
-		end
-		values[#values + 1] = reference.index
-	end
-	return values
-end
-
-local DIMENSIONS = {
-	{
-		rule_values = function(rule)
-			return rule.selector.entity_types
-		end,
-		context_values = function(context)
-			local entity = context.payload.entity
-			return { entity and (entity.ghost_type or entity.type) }
-		end,
-	},
-	{
-		rule_values = function(rule)
-			return rule.selector.entity_names
-		end,
-		context_values = function(context)
-			local entity = context.payload.entity
-			return { entity and (entity.ghost_name or entity.name) }
-		end,
-	},
-	{
-		rule_values = function(rule)
-			return rule.selector.sources
-		end,
-		context_values = function(context)
-			return { context.payload.source }
-		end,
-	},
-	{
-		rule_values = function(rule)
-			return rule.scope.surfaces
-		end,
-		context_values = function(context)
-			return reference_values(context.surface)
-		end,
-	},
-	{
-		rule_values = function(rule)
-			return rule.scope.forces
-		end,
-		context_values = function(context)
-			return reference_values(context.force)
-		end,
-	},
-}
-
-local function value_key(value)
-	return type(value) .. ":" .. tostring(value)
-end
-
-local function event_key(domain, kind)
-	return domain .. "\0" .. kind
-end
 
 local function ordered(left, right)
 	if left.priority == right.priority then
@@ -144,27 +81,26 @@ local function build(rules, options)
 
 	for _, rule in ipairs(rules) do
 		if rule.enabled then
-			local key = event_key(rule.event.domain, rule.event.kind)
+			local key = Event.key(rule.event)
 			local bucket = buckets[key]
 			if not bucket then
 				bucket = { rules = {}, dimensions = {} }
-				for index in ipairs(DIMENSIONS) do
+				for index = 1, Selector.dimension_count() do
 					bucket.dimensions[index] = { wildcard = {}, values = {} }
 				end
 				buckets[key] = bucket
 			end
 			bucket.rules[#bucket.rules + 1] = rule
-			for index, definition in ipairs(DIMENSIONS) do
+			for index, values in ipairs(Selector.rule_terms(rule)) do
 				local dimension = bucket.dimensions[index]
-				local values = definition.rule_values(rule)
-				if not values or #values == 0 then
+				if #values == 0 then
 					dimension.wildcard[#dimension.wildcard + 1] = rule
 				else
 					for _, value in ipairs(values) do
-						local indexed = dimension.values[value_key(value)]
+						local indexed = dimension.values[value]
 						if not indexed then
 							indexed = {}
-							dimension.values[value_key(value)] = indexed
+							dimension.values[value] = indexed
 						end
 						indexed[#indexed + 1] = rule
 					end
@@ -237,20 +173,18 @@ function M.new(options)
 	end
 
 	function compiler.candidates(_self, context)
-		local bucket = buckets[event_key(context.domain, context.kind)]
+		local bucket = buckets[Event.key(context)]
 		if not bucket then
 			return {}
 		end
 
 		local candidates
-		for index, definition in ipairs(DIMENSIONS) do
+		for index, values in ipairs(Selector.context_terms(context)) do
 			local dimension = bucket.dimensions[index]
 			local allowed = {}
 			include_rules(allowed, dimension.wildcard)
-			for _, value in ipairs(definition.context_values(context)) do
-				if value ~= nil then
-					include_rules(allowed, dimension.values[value_key(value)])
-				end
+			for _, value in ipairs(values) do
+				include_rules(allowed, dimension.values[value])
 			end
 			if not candidates then
 				candidates = allowed

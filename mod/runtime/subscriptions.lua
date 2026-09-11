@@ -1,8 +1,6 @@
-local M = {}
+local Event = require("lib.rules.event")
 
-local function event_key(event)
-	return event.domain .. "\0" .. event.kind
-end
+local M = {}
 
 local function deep_equal(left, right)
 	if left == right then
@@ -30,7 +28,7 @@ local function sorted_events(events)
 		result[#result + 1] = { domain = event.domain, kind = event.kind }
 	end
 	table.sort(result, function(left, right)
-		return event_key(left) < event_key(right)
+		return Event.key(left) < Event.key(right)
 	end)
 	return result
 end
@@ -44,7 +42,7 @@ function M.new(options)
 	local manager = {}
 
 	local function definition_for(event)
-		return definitions[event_key(event)]
+		return definitions[Event.key(event)]
 	end
 
 	function manager.rebuild(_self, requirements, handler)
@@ -52,7 +50,7 @@ function M.new(options)
 		local next_configuration = {}
 		local errors = {}
 		for _, event in ipairs(events) do
-			local key = event_key(event)
+			local key = Event.key(event)
 			local definition = definition_for(event)
 			if not definition or definition.available == false then
 				errors[#errors + 1] = "event " .. key:gsub("\0", "/") .. " has no subscription"
@@ -116,7 +114,7 @@ function M.new(options)
 			result[#result + 1] = registration.event
 		end
 		table.sort(result, function(left, right)
-			return event_key(left) < event_key(right)
+			return Event.key(left) < Event.key(right)
 		end)
 		return result
 	end
