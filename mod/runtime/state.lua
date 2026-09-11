@@ -5,6 +5,8 @@ function M.initialize()
 	storage.rules = storage.rules or { schema_version = 1 }
 	storage.violations = storage.violations or {}
 	storage.overlays = storage.overlays or { players = {}, forced = {}, entries = {}, objects = {} }
+	storage.resource_patches = storage.resource_patches
+		or { schema_version = 1, next_id = 1, patches = {}, cells = {}, aliases = {} }
 end
 
 return M
