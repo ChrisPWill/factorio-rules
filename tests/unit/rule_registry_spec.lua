@@ -1,0 +1,62 @@
+local Registry = require("lib.rules.registry")
+
+local function rule(id, reason)
+	return {
+		schema_version = 1,
+		definition_version = 1,
+		id = id,
+		provenance = { source = id:match("^[^:]+"), kind = "test" },
+		event = { domain = "test", kind = "event" },
+		selector = {},
+		scope = {},
+		when = { predicate = "test:predicate" },
+		effects = { primary = { type = "deny", reason = reason or "deny" }, actions = {} },
+	}
+end
+
+return {
+	{
+		name = "rejects duplicate registration but allows explicit replacement",
+		run = function()
+			local registry = Registry.new({})
+			assert(registry:register(rule("alpha:one")))
+			local ok, errors = registry:register(rule("alpha:one"))
+			assert(not ok and errors[1]:find("already registered", 1, true))
+			assert(registry:replace(rule("alpha:one", "replacement")))
+			local effective = assert(registry:effective())
+			assert(effective[1].effects.primary.reason == "replacement")
+		end,
+	},
+	{
+		name = "applies ordered cross-source patches and sparse save overrides",
+		run = function()
+			local state = {}
+			local registry = Registry.new(state)
+			assert(registry:register(rule("alpha:one")))
+			assert(registry:override("alpha:one", { priority = 4 }, "beta:patch"))
+			assert(
+				registry:override(
+					"alpha:one",
+					{ effects = { primary = { reason = "patched" } } },
+					"gamma:patch"
+				)
+			)
+			assert(registry:set_override("alpha:one", { enabled = false }))
+			local effective = assert(registry:effective())
+			assert(effective[1].priority == 4)
+			assert(effective[1].effects.primary.reason == "patched")
+			assert(effective[1].enabled == false)
+			assert(#effective[1].provenance.lineage == 4)
+		end,
+	},
+	{
+		name = "retains and warns about orphaned save overrides",
+		run = function()
+			local registry = Registry.new({ overrides = { ["gone:rule"] = { enabled = false } } })
+			local effective = assert(registry:effective())
+			assert(#effective == 0)
+			local warnings = registry:warnings()
+			assert(#warnings == 1 and warnings[1]:find("orphaned", 1, true))
+		end,
+	},
+}

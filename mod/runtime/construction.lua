@@ -92,9 +92,9 @@ function M.new(options)
 	return enforcer
 end
 
-function M.cooperative_interface(enforcer, tick_provider)
+function M.cooperative_interface(enforcer, tick_provider, extensions)
 	assert(type(tick_provider) == "function", "tick provider is required")
-	return {
+	local interface = {
 		enforce_construction = function(entity, source)
 			source = source or "script_raised_built"
 			assert(SCRIPT_SOURCES[source], "cooperative source must be a script-raised event")
@@ -105,6 +105,11 @@ function M.cooperative_interface(enforcer, tick_provider)
 			return result, errors
 		end,
 	}
+	for name, operation in pairs(extensions or {}) do
+		assert(interface[name] == nil, "cooperative interface operation already exists: " .. name)
+		interface[name] = operation
+	end
+	return interface
 end
 
 local function register_event(script_api, event_id, source, enforcer)

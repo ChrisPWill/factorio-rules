@@ -13,6 +13,7 @@ local ResourceDiscovery = require("runtime.resource_discovery")
 local SpawnPatches = require("lib.spawn_patches")
 local Zones = require("lib.zones")
 local NauvisMiner = require("lib.builtin.nauvis_miner")
+local RuleRegistry = require("lib.rules.registry")
 
 local M = {}
 
@@ -54,6 +55,7 @@ function M.register(runtime)
 	local adapters = AdapterRegistry.new()
 	ConstructionAdapters.register(adapters)
 	local compiler = Compiler.new()
+	local rule_registry
 	local rollback = Rollback.factorio({
 		get_player = function(index)
 			return game.get_player(index)
@@ -169,7 +171,18 @@ function M.register(runtime)
 
 	local function configure_policy()
 		zones = zone_registry()
-		local changed, errors = compiler:replace({ NauvisMiner.rule() })
+		if not rule_registry then
+			rule_registry = RuleRegistry.new(storage().rules)
+		end
+		local builtin = NauvisMiner.rule()
+		local source = storage().rules.sources[builtin.provenance.source]
+		if not source or not source.rules[builtin.id] then
+			local registered, register_errors = rule_registry:register(builtin)
+			assert(registered, register_errors and table.concat(register_errors, "; "))
+		end
+		local effective, registry_errors = rule_registry:effective()
+		assert(effective, registry_errors and table.concat(registry_errors, "; "))
+		local changed, errors = compiler:replace(effective)
 		assert(changed ~= nil, errors and table.concat(errors, "; "))
 		assert(overlays:replace(overlay_entries()))
 	end
@@ -341,7 +354,29 @@ function M.register(runtime)
 		"factorio_rules",
 		Construction.cooperative_interface(enforcer, function()
 			return game.tick
-		end)
+		end, {
+			register_rule = function(rule)
+				return rule_registry:register(rule)
+			end,
+			replace_rule = function(rule)
+				return rule_registry:replace(rule)
+			end,
+			override_rule = function(id, fields, source)
+				return rule_registry:override(id, fields, source)
+			end,
+			replace_external_rule = function(id, rule, source)
+				return rule_registry:replace_external(id, rule, source)
+			end,
+			set_rule_override = function(id, fields)
+				return rule_registry:set_override(id, fields)
+			end,
+			effective_rules = function()
+				return rule_registry:effective()
+			end,
+			rule_warnings = function()
+				return rule_registry:warnings()
+			end,
+		})
 	)
 
 	local function activate(message)

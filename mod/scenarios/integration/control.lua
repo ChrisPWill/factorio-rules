@@ -11,8 +11,26 @@ local ResourceDiscovery = require("__factorio-rules__.runtime.resource_discovery
 local SpawnPatches = require("__factorio-rules__.lib.spawn_patches")
 local Zones = require("__factorio-rules__.lib.zones")
 local NauvisMiner = require("__factorio-rules__.lib.builtin.nauvis_miner")
+local RuleRegistry = require("__factorio-rules__.lib.rules.registry")
 
 local checks = {
+	{
+		name = "rule registry resolves source, patch, save override, and orphan provenance",
+		run = function()
+			local state = {}
+			local registry = RuleRegistry.new(state)
+			local rule = NauvisMiner.rule()
+			assert(registry:register(rule))
+			assert(registry:override(rule.id, { priority = 101 }, "integration:patch"))
+			assert(registry:set_override(rule.id, { enabled = false }))
+			local effective = assert(registry:effective())
+			assert(#effective == 1 and effective[1].priority == 101 and not effective[1].enabled)
+			assert(#effective[1].provenance.lineage == 3)
+			assert(registry:set_override("removed:rule", { enabled = false }))
+			assert(registry:effective())
+			assert(#registry:warnings() == 1)
+		end,
+	},
 	{
 		name = "allowed entities can be placed and inspected",
 		run = function(surface)
