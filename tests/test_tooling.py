@@ -13,6 +13,10 @@ spec = importlib.util.spec_from_file_location("package", ROOT / "scripts/package
 package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
 
+install_spec = importlib.util.spec_from_file_location("install_local", ROOT / "scripts/install_local.py")
+install_local = importlib.util.module_from_spec(install_spec)
+install_spec.loader.exec_module(install_local)
+
 
 class PackagingTests(unittest.TestCase):
     def test_reproducible_and_installable(self):
@@ -29,6 +33,65 @@ class PackagingTests(unittest.TestCase):
                 self.assertIn(f"{stem}/control.lua", names)
                 self.assertTrue(all(name.startswith(f"{stem}/") for name in names))
                 self.assertFalse(any("tests/" in name or "AGENTS" in name for name in names))
+
+
+class LocalInstallTests(unittest.TestCase):
+    def test_resolves_native_and_wsl_mods_paths(self):
+        home = Path("/home/tester")
+        self.assertEqual(
+            install_local.resolve_mods_dir({}, "Linux", home, proc_version=Path("/missing")),
+            home / ".factorio" / "mods",
+        )
+        self.assertEqual(
+            install_local.resolve_mods_dir({}, "Darwin", home),
+            home / "Library" / "Application Support" / "factorio" / "mods",
+        )
+        self.assertEqual(
+            install_local.resolve_mods_dir(
+                {"WSL_DISTRO_NAME": "Ubuntu", "APPDATA": "/mnt/c/Users/test/AppData/Roaming"},
+                "Linux",
+                home,
+            ),
+            Path("/mnt/c/Users/test/AppData/Roaming/Factorio/mods"),
+        )
+
+    def test_converts_windows_appdata_when_running_under_wsl(self):
+        calls = []
+
+        def run(command, **_):
+            calls.append(command)
+            return type("Result", (), {"stdout": "/mnt/c/Users/test/AppData/Roaming\n"})()
+
+        self.assertEqual(
+            install_local.resolve_mods_dir(
+                {"WSL_INTEROP": "1", "APPDATA": "C:\\Users\\test\\AppData\\Roaming"},
+                "Linux",
+                "/home/tester",
+                run=run,
+            ),
+            Path("/mnt/c/Users/test/AppData/Roaming/Factorio/mods"),
+        )
+        self.assertEqual(calls, [["wslpath", "-u", "C:\\Users\\test\\AppData\\Roaming"]])
+
+    def test_installs_canonical_zip_and_only_replaces_this_mod(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            output.mkdir()
+            package_path = output / "factorio-rules_0.1.0.zip"
+            package_path.write_bytes(b"current package")
+            mods = root / "mods"
+            mods.mkdir()
+            (mods / "factorio-rules_0.0.9.zip").write_bytes(b"stale package")
+            (mods / "other-mod_1.0.0.zip").write_bytes(b"other package")
+
+            package = install_local.package_from_output(output)
+            destination = install_local.install(package, mods)
+
+            self.assertEqual(destination, mods / package.name)
+            self.assertEqual(destination.read_bytes(), b"current package")
+            self.assertFalse((mods / "factorio-rules_0.0.9.zip").exists())
+            self.assertEqual((mods / "other-mod_1.0.0.zip").read_bytes(), b"other package")
 
 
 class HarnessTests(unittest.TestCase):

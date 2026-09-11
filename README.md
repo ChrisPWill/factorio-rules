@@ -5,11 +5,15 @@ mining drills near the Nauvis spawn unless they overlap an original resource pat
 
 ## Build and install
 
-Run `make package` with Python 3 and Make installed. Copy
-`dist/factorio-rules_0.1.0.zip` into your Factorio mods directory and enable it.
-The package includes only `mod/` files, with sorted entries, fixed timestamps and
-permissions, and no compression so identical inputs produce identical zip bytes.
-Run `make validate` to check metadata and entry points independently.
+Run `nix run .#install-local` to build the canonical package and install it in
+your standard Factorio mods directory. Pass an explicit directory for a
+non-standard installation: `nix run .#install-local -- --mods-dir /path/to/mods`.
+The helper replaces only stale `factorio-rules_*.zip` files and prints the installed
+version and destination. Run `nix build` and copy its zip from `result/` manually
+when Nix installation is not appropriate. The package includes only `mod/` files,
+with sorted entries, fixed timestamps and permissions, and no compression so
+identical inputs produce identical zip bytes. Run `make validate` to check metadata
+and entry points independently.
 
 ## Development tools
 

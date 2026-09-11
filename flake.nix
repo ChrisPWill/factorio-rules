@@ -44,6 +44,19 @@
           '';
         });
 
+      apps = forAllSystems (system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+          install-local = pkgs.writeShellScript "factorio-rules-install-local" ''
+            exec ${pkgs.python3}/bin/python3 ${./scripts/install_local.py} ${self.packages.${system}.default} "$@"
+          '';
+        in {
+          install-local = {
+            type = "app";
+            program = "${install-local}";
+          };
+        });
+
       checks = forAllSystems (system: {
         package = self.packages.${system}.default;
       });
