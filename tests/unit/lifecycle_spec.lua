@@ -7,7 +7,7 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 			local persisted = { rules = existing or nil }
 			local env = { storage = persisted }
 			local state = assert(loadfile("mod/runtime/state.lua", "t", env))()
-			state.initialize()
+			assert(state.initialize() == persisted)
 			assert(persisted.rules.schema_version == 1)
 			assert(type(persisted.violations) == "table")
 			assert(type(persisted.overlays.players) == "table")
@@ -34,6 +34,25 @@ for _, existing in ipairs({ false, { schema_version = 1, saved_rule = "preserved
 		end,
 	}
 end
+
+cases[#cases + 1] = {
+	name = "resets resource caches through one state boundary",
+	run = function()
+		local persisted = {}
+		local state = assert(loadfile("mod/runtime/state.lua", "t", { storage = persisted }))()
+		state.initialize()
+		local old_patches = persisted.resource_patches
+		local old_spawn = persisted.spawn_patches
+		local old_discovery = persisted.resource_discovery
+		state.reset_resource_cache()
+		assert(persisted.resource_patches ~= old_patches)
+		assert(persisted.resource_patches.schema_version == 1)
+		assert(persisted.resource_patches.next_id == 1)
+		assert(persisted.spawn_patches ~= old_spawn)
+		assert(persisted.spawn_patches.schema_version == 1)
+		assert(persisted.resource_discovery == old_discovery)
+	end,
+}
 
 for _, enabled in ipairs({ false, true }) do
 	cases[#cases + 1] = {

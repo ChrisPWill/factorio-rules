@@ -254,14 +254,7 @@ discovery = ResourceDiscovery.new({
 		script.on_nth_tick(1, active and process_resource_discovery or nil)
 	end,
 	reset_cache = function()
-		storage.resource_patches = {
-			schema_version = 1,
-			next_id = 1,
-			patches = {},
-			cells = {},
-			aliases = {},
-		}
-		storage.spawn_patches = { schema_version = 1, windows = {} }
+		state.reset_resource_cache()
 	end,
 })
 local evaluator = Evaluator.new({
