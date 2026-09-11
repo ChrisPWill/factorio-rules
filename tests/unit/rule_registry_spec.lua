@@ -59,4 +59,44 @@ return {
 			assert(#warnings == 1 and warnings[1]:find("orphaned", 1, true))
 		end,
 	},
+	{
+		name = "migrates old sparse overrides transactionally",
+		run = function()
+			local base = rule("alpha:one")
+			base.definition_version = 2
+			local state = {
+				overrides = { ["alpha:one"] = { old_reason = "legacy" } },
+				override_versions = { ["alpha:one"] = 1 },
+			}
+			local registry = Registry.new(state)
+			assert(registry:register(base))
+			assert(registry:migrate({
+				rule_migrations = {
+					["alpha:one"] = function(_fields, from, to)
+						assert(from == 1 and to == 2)
+						return { priority = 7 }
+					end,
+				},
+			}))
+			local effective = assert(registry:effective())
+			assert(effective[1].priority == 7)
+		end,
+	},
+	{
+		name = "does not commit a failed migration",
+		run = function()
+			local state = { framework_schema_version = 1 }
+			local registry = Registry.new(state)
+			local ok, errors = registry:migrate({
+				framework_schema_version = 2,
+				framework_migrations = {
+					[1] = function()
+						return nil
+					end,
+				},
+			})
+			assert(not ok and errors[1]:find("migration failed", 1, true))
+			assert(state.framework_schema_version == 1)
+		end,
+	},
 }

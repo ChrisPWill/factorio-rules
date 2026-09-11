@@ -32,6 +32,33 @@ local checks = {
 		end,
 	},
 	{
+		name = "rule registry upgrades a saved override without corrupting state",
+		run = function()
+			local state = {
+				framework_schema_version = 1,
+				overrides = { ["integration:rule"] = { old_field = true } },
+				override_versions = { ["integration:rule"] = 1 },
+			}
+			local registry = RuleRegistry.new(state)
+			local rule = NauvisMiner.rule()
+			rule.id = "integration:rule"
+			rule.provenance.source = "integration"
+			rule.definition_version = 2
+			assert(registry:register(rule))
+			assert(registry:migrate({
+				rule_migrations = {
+					["integration:rule"] = function()
+						return { priority = 9 }
+					end,
+				},
+				source_versions = { integration = "2.0.0" },
+			}))
+			local effective = assert(registry:effective())
+			assert(effective[1].priority == 9)
+			assert(state.source_versions.integration == "2.0.0")
+		end,
+	},
+	{
 		name = "allowed entities can be placed and inspected",
 		run = function(surface)
 			local entity = surface.create_entity({

@@ -18,6 +18,9 @@ local INITIALIZERS = {
 			warnings = {},
 			next_patch = 1,
 			next_source = 1,
+			framework_schema_version = 1,
+			source_versions = {},
+			override_versions = {},
 		}
 	end,
 	violations = function()
@@ -52,6 +55,9 @@ function M.initialize(target)
 	target.rules.warnings = target.rules.warnings or {}
 	target.rules.next_patch = target.rules.next_patch or 1
 	target.rules.next_source = target.rules.next_source or 1
+	target.rules.framework_schema_version = target.rules.framework_schema_version or 1
+	target.rules.source_versions = target.rules.source_versions or {}
+	target.rules.override_versions = target.rules.override_versions or {}
 	target.violations = target.violations or INITIALIZERS.violations()
 	target.overlays = target.overlays or INITIALIZERS.overlays()
 	target.resource_patches = target.resource_patches or INITIALIZERS.resource_patches()

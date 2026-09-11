@@ -174,6 +174,11 @@ function M.register(runtime)
 		if not rule_registry then
 			rule_registry = RuleRegistry.new(storage().rules)
 		end
+		local migrated, migration_errors = rule_registry:migrate({
+			framework_schema_version = 1,
+			source_versions = { ["factorio-rules"] = "0.1.0" },
+		})
+		assert(migrated, migration_errors and table.concat(migration_errors, "; "))
 		local builtin = NauvisMiner.rule()
 		local source = storage().rules.sources[builtin.provenance.source]
 		if not source or not source.rules[builtin.id] then
@@ -369,6 +374,9 @@ function M.register(runtime)
 			end,
 			set_rule_override = function(id, fields)
 				return rule_registry:set_override(id, fields)
+			end,
+			migrate_rules = function(options)
+				return rule_registry:migrate(options)
 			end,
 			effective_rules = function()
 				return rule_registry:effective()

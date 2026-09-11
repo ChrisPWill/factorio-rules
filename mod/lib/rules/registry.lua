@@ -3,6 +3,7 @@ local serializable = require("lib.serializable")
 
 local M = {}
 local SCHEMA_VERSION = 1
+local FRAMEWORK_SCHEMA_VERSION = 1
 
 local function copy(value, path)
 	local result, errors = serializable.copy(value, path, { strict_collections = true })
@@ -31,6 +32,9 @@ local function ensure_state(state)
 	state.warnings = state.warnings or {}
 	state.next_patch = state.next_patch or 1
 	state.next_source = state.next_source or 1
+	state.framework_schema_version = state.framework_schema_version or FRAMEWORK_SCHEMA_VERSION
+	state.source_versions = state.source_versions or {}
+	state.override_versions = state.override_versions or {}
 	return state
 end
 
@@ -149,6 +153,76 @@ function M.new(target)
 			return nil, { "save override requires a rule id and fields table" }
 		end
 		state.overrides[id] = merge(state.overrides[id], fields)
+		if fields.definition_version then
+			state.override_versions[id] = fields.definition_version
+		end
+		return true, nil
+	end
+
+	function registry.migrate(_self, options)
+		options = options or {}
+		local target_framework = options.framework_schema_version or FRAMEWORK_SCHEMA_VERSION
+		if
+			type(target_framework) ~= "number"
+			or target_framework < state.framework_schema_version
+		then
+			return nil, { "target framework schema version must not move backwards" }
+		end
+		local staged = copy(state, "migration")
+		local function fail(message)
+			return nil, { "rule migration failed: " .. message }
+		end
+		local framework_migrations = options.framework_migrations or {}
+		while staged.framework_schema_version < target_framework do
+			local from = staged.framework_schema_version
+			local migration = framework_migrations[from]
+			if type(migration) ~= "function" then
+				return fail("no migration from framework schema " .. from)
+			end
+			local ok, result = pcall(migration, staged.overrides)
+			if not ok or type(result) ~= "table" then
+				return fail("framework schema " .. from .. " migration returned invalid overrides")
+			end
+			staged.overrides = result
+			staged.framework_schema_version = from + 1
+		end
+		local definitions = {}
+		for source, entry in pairs(staged.sources) do
+			for id, rule in pairs(entry.rules or {}) do
+				definitions[id] = { source = source, version = rule.definition_version }
+			end
+		end
+		for id, fields in pairs(staged.overrides) do
+			local definition = definitions[id]
+			local from = staged.override_versions[id] or fields.definition_version
+			if definition and from and from < definition.version then
+				local migration = (options.rule_migrations or {})[id]
+					or (options.rule_migrations or {})[definition.source]
+				if type(migration) ~= "function" then
+					return fail("no definition migration for " .. id .. " from version " .. from)
+				end
+				local ok, result = pcall(
+					migration,
+					copy(fields, "migration.override." .. id),
+					from,
+					definition.version
+				)
+				if not ok or type(result) ~= "table" then
+					return fail("definition migration for " .. id .. " returned invalid fields")
+				end
+				staged.overrides[id] = result
+				staged.override_versions[id] = definition.version
+			end
+		end
+		for source, version in pairs(options.source_versions or {}) do
+			staged.source_versions[source] = version
+		end
+		for key in pairs(state) do
+			state[key] = nil
+		end
+		for key, value in pairs(staged) do
+			state[key] = value
+		end
 		return true, nil
 	end
 
