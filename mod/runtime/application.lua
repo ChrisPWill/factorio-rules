@@ -18,6 +18,7 @@ local Extensions = require("runtime.extensions")
 local RuleUI = require("runtime.rule_ui")
 local ZoneEditing = require("runtime.zone_editing")
 local Catalogue = require("lib.rules.catalogue")
+local ZoneStore = require("runtime.zone_store")
 
 local M = {}
 
@@ -220,6 +221,19 @@ function M.register(runtime)
 		end
 		local effective, registry_errors = rule_registry:effective()
 		assert(effective, registry_errors and table.concat(registry_errors, "; "))
+		local known_zones = {}
+		for _, zone in ipairs(zones.list()) do
+			known_zones[zone.id] = true
+		end
+		for _, rule in ipairs(effective) do
+			for id in pairs(Zones.referenced_ids(rule.when)) do
+				if not known_zones[id] then
+					rule.enabled = false
+					local warnings = rule_registry:state().warnings
+					warnings[#warnings + 1] = "rule " .. rule.id .. ": unavailable zone " .. id
+				end
+			end
+		end
 		local changed, errors = compiler:replace(effective)
 		assert(changed ~= nil, errors and table.concat(errors, "; "))
 		assert(overlays:replace(overlay_entries()))
@@ -239,20 +253,36 @@ function M.register(runtime)
 			return rule_registry:clear_override(id)
 		end,
 		delete_unused_zones = function()
-			local kept, removed =
-				Zones.delete_unused(storage().rules.zones, assert(rule_registry:effective()))
+			local kept, removed = Zones.delete_unused(
+				storage().rules.zones,
+				{ storage().rules.sources, storage().rules.patches, storage().rules.overrides }
+			)
 			for _, zone_id in ipairs(removed) do
 				storage().overlays.forced[zone_id] = nil
 			end
 			storage().rules.zones = kept
 			return true, nil
 		end,
+		edit_zone = function(index, id)
+			return zone_editor:begin(index, id)
+		end,
+		rename_zone = function(id, name)
+			local store = ZoneStore.new(storage().rules)
+			local zone = store:get(id)
+			if not zone then
+				return nil, { "unknown zone" }
+			end
+			zone.name = name
+			return store:save(zone)
+		end,
 		zones = function()
 			return storage().rules.zones or {}
 		end,
 		zone_summary = function()
-			local _, removed =
-				Zones.delete_unused(storage().rules.zones, assert(rule_registry:effective()))
+			local _, removed = Zones.delete_unused(
+				storage().rules.zones,
+				{ storage().rules.sources, storage().rules.patches, storage().rules.overrides }
+			)
 			return { unused = #removed }
 		end,
 		rebuild = configure_policy,
@@ -261,14 +291,11 @@ function M.register(runtime)
 		get_player = function(index)
 			return game.get_player(index)
 		end,
-		next_id = function()
-			local id = "factorio-rules:zone-" .. tostring(storage().rules.next_zone_id)
-			storage().rules.next_zone_id = storage().rules.next_zone_id + 1
-			return id
+		get = function(id)
+			return ZoneStore.new(storage().rules):get(id)
 		end,
 		save = function(zone)
-			storage().rules.zones[#storage().rules.zones + 1] = zone
-			return true
+			return ZoneStore.new(storage().rules):save(zone)
 		end,
 		rebuild = configure_policy,
 	})
@@ -454,7 +481,19 @@ function M.register(runtime)
 			return false
 		end,
 	})
-	local evaluator = Evaluator.new(predicates)
+	predicates[Catalogue.INSIDE_ZONE] = function(context, condition)
+		return zones:contains(condition.zone_id, context, context.payload.entity.position)
+	end
+	local evaluator = Evaluator.new(predicates, {
+		applicable = function(rule, context)
+			for id in pairs(Zones.referenced_ids(rule.when)) do
+				if not zones:resolve(id, context) then
+					return false
+				end
+			end
+			return true
+		end,
+	})
 	local enforcer = Construction.new({
 		adapters = adapters,
 		compiler = compiler,
@@ -480,10 +519,18 @@ function M.register(runtime)
 			return game.tick
 		end, {
 			register_rule = function(rule)
-				return rule_registry:register(rule)
+				local ok, errors = rule_registry:register(rule)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			replace_rule = function(rule)
-				return rule_registry:replace(rule)
+				local ok, errors = rule_registry:replace(rule)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			override_rule = function(id, fields, source)
 				return rule_registry:override(id, fields, source)
@@ -510,6 +557,19 @@ function M.register(runtime)
 					configure_policy()
 				end
 				return result, errors
+			end,
+			list_zones = function()
+				return zones.list()
+			end,
+			save_zone = function(zone)
+				if zone.id == NauvisMiner.ZONE_ID then
+					return nil, { "built-in zone is read-only" }
+				end
+				local id, errors = ZoneStore.new(storage().rules):save(zone)
+				if id then
+					configure_policy()
+				end
+				return id, errors
 			end,
 			authoring_catalogue = function()
 				return catalogue.describe()
@@ -562,6 +622,11 @@ function M.register(runtime)
 	end
 	if defines.events.on_gui_click then
 		script.on_event(defines.events.on_gui_click, function(event)
+			rule_ui:handle_click(event)
+		end)
+	end
+	if defines.events.on_gui_confirmed then
+		script.on_event(defines.events.on_gui_confirmed, function(event)
 			rule_ui:handle_click(event)
 		end)
 	end

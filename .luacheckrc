@@ -8,3 +8,5 @@ files["mod/data.lua"] = { read_globals = { "data" } }
 files["mod/runtime/state.lua"] = { globals = { "storage" } }
 files["mod/runtime/logger.lua"] = { read_globals = { "settings", "log" } }
 files["mod/scenarios/**"] = { read_globals = { "defines", "script", "game", "log", "rendering", "remote" } }
+
+files["tests/integration-driver.lua"] = { read_globals = { "remote", "script", "defines", "game" } }

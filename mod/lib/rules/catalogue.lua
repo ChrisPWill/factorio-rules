@@ -23,6 +23,36 @@ for _, descriptor in pairs(predicates) do
 	descriptor.domain = "construction"
 end
 
+function M.referenced_zones(value, extra)
+	local result = {}
+	local function visit(node)
+		if type(node) ~= "table" then
+			return
+		end
+		local name = node.predicate or node.type
+		local descriptor = name and ((extra or {})[name] or predicates[name])
+		for key, parameter in pairs(descriptor and descriptor.parameters or {}) do
+			if parameter.reference == "zone" and type(node[key]) == "string" then
+				result[node[key]] = true
+			end
+		end
+		if name == Miner.INSIDE_PREDICATE then
+			result[Miner.ZONE_ID] = true
+		end
+		-- Legacy metadata may protect restorable overrides that lack a condition discriminator.
+		for _, id in ipairs(node.zone_ids or {}) do
+			result[id] = true
+		end
+		for key, child in pairs(node) do
+			if key ~= "zone_ids" then
+				visit(child)
+			end
+		end
+	end
+	visit(value)
+	return result
+end
+
 local fields = {
 	entity_names = { label = "Entities", type = "array", reference = "entity" },
 	entity_types = { label = "Entity types", type = "array", reference = "entity_type" },

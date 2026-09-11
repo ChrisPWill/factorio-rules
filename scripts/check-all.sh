@@ -27,4 +27,9 @@ fi
 
 cd "$root_dir"
 nix flake check --print-build-logs
-FACTORIO_BIN="$factorio_bin" make integration-test
+FACTORIO_PLAYER_SAVE= FACTORIO_BIN="$factorio_bin" make integration-test
+if [[ -n "${FACTORIO_PLAYER_SAVE:-}" ]]; then
+	FACTORIO_BIN="$factorio_bin" make integration-test
+else
+	echo "GUI tests not run: set FACTORIO_PLAYER_SAVE to a compatible save containing a player."
+fi

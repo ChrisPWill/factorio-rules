@@ -66,7 +66,8 @@ local function ordered_rules(rules)
 	return result
 end
 
-function M.new(predicates)
+function M.new(predicates, settings)
+	local applicable = settings and settings.applicable
 	assert(type(predicates) == "table", "predicates must be a table")
 	local evaluator = {}
 
@@ -87,6 +88,9 @@ function M.new(predicates)
 				end
 			else
 				local selected, rejected_by = Selector.matches(rule, context)
+				if selected and applicable and not applicable(rule, context) then
+					selected, rejected_by = false, "zone-scope"
+				end
 				if not selected then
 					if rule_trace then
 						rule_trace.status = "not-selected"

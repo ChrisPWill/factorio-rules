@@ -1,6 +1,51 @@
 local ZoneEditing = require("runtime.zone_editing")
+local Store = require("runtime.zone_store")
 
 return {
+	{
+		name = "redraw preserves zone identity and rejects a different surface",
+		run = function()
+			local store = Store.new({ zones = {} })
+			local id = assert(store:save({
+				name = "Home",
+				shape = { type = "circle", radius = 4 },
+				anchor = { type = "absolute", position = { x = 0, y = 0 } },
+				scope = { surfaces = { "nauvis" }, forces = { "player" } },
+			}))
+			local player = {
+				surface = { name = "nauvis" },
+				force = { name = "player" },
+				cursor_stack = { set_stack = function() end, clear = function() end },
+			}
+			local editor = ZoneEditing.new({
+				get_player = function()
+					return player
+				end,
+				get = function(key)
+					return store:get(key)
+				end,
+				save = function(zone)
+					return store:save(zone)
+				end,
+				rebuild = function() end,
+			})
+			assert(editor:begin(1, id))
+			local event = {
+				item = ZoneEditing.TOOL_NAME,
+				player_index = 1,
+				area = { left_top = { x = 2, y = 2 }, right_bottom = { x = 8, y = 8 } },
+			}
+			player.surface.name = "other"
+			assert(not editor:select(event))
+			player.surface.name = "nauvis"
+			assert(editor:select(event))
+			assert(
+				#store.list() == 1
+					and store:get(id).name == "Home"
+					and store:get(id).shape.width == 6
+			)
+		end,
+	},
 	{
 		name = "converts a world selection into a scoped persisted rectangle",
 		run = function()

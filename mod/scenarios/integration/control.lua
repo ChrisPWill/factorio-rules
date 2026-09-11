@@ -15,7 +15,134 @@ local RuleRegistry = require("__factorio-rules__.lib.rules.registry")
 local Extensions = require("__factorio-rules__.runtime.extensions")
 local RuleEvaluator = require("__factorio-rules__.lib.rules.evaluator")
 
+local function dispatch(name, event)
+	return remote.call("factorio_rules_test", "dispatch", name, event)
+end
+
 local checks = {
+	{
+		name = "zone GUI redraw and cleanup use registered handlers with real GUI objects",
+		requires_player = true,
+		run = function()
+			local player
+			for _, candidate in pairs(game.players) do
+				if not player or candidate.index < player.index then
+					player = candidate
+				end
+			end
+			assert(player, "requires a player-bearing save")
+			local surface = player.surface
+			local id = assert(remote.call("factorio_rules", "save_zone", {
+				name = "Edit me",
+				shape = { type = "circle", radius = 3 },
+				anchor = { type = "absolute", position = { x = 40, y = 40 } },
+				scope = { surfaces = { surface.name }, forces = { player.force.name } },
+			}))
+			dispatch(
+				"on_lua_shortcut",
+				{ player_index = player.index, prototype_name = "factorio-rules-manage-rules" }
+			)
+			local frame = assert(player.gui.screen["factorio-rules-rule-manager"])
+			local function find(element, action)
+				if
+					element.tags.action == action
+					and (not element.tags.zone_id or element.tags.zone_id == id)
+				then
+					return element
+				end
+				for _, child in pairs(element.children) do
+					local result = find(child, action)
+					if result then
+						return result
+					end
+				end
+			end
+			local rename = assert(find(frame, "rename-zone"))
+			rename.text = "Renamed"
+			dispatch("on_gui_confirmed", { player_index = player.index, element = rename })
+			local redraw = assert(find(frame, "edit-zone"))
+			dispatch("on_gui_click", { player_index = player.index, element = redraw })
+			dispatch("on_player_selected_area", {
+				player_index = player.index,
+				item = "factorio-rules-zone-selector",
+				area = { left_top = { x = 40, y = 40 }, right_bottom = { x = 50, y = 50 } },
+			})
+			local found
+			for _, zone in ipairs(remote.call("factorio_rules", "list_zones")) do
+				if zone.id == id then
+					found = zone
+				end
+			end
+			assert(found and found.name == "Renamed" and found.shape.width == 10)
+			dispatch(
+				"on_lua_shortcut",
+				{ player_index = player.index, prototype_name = "factorio-rules-manage-rules" }
+			)
+			frame = player.gui.screen["factorio-rules-rule-manager"]
+			dispatch("on_gui_click", {
+				player_index = player.index,
+				element = assert(find(frame, "delete-unused-zones")),
+			})
+			for _, zone in ipairs(remote.call("factorio_rules", "list_zones")) do
+				assert(zone.id ~= id)
+			end
+		end,
+	},
+	{
+		name = "registered zone rules enforce positions and do not leak across scopes",
+		run = function(surface)
+			local id = assert(remote.call("factorio_rules", "save_zone", {
+				name = "Protected",
+				shape = { type = "rectangle", width = 10, height = 10 },
+				anchor = { type = "absolute", position = { x = 80, y = 80 } },
+				scope = { surfaces = { surface.name }, forces = { "player" } },
+			}))
+			local rule = NauvisMiner.rule()
+			rule.id = "integration:zone"
+			rule.provenance.source = "integration"
+			rule.selector = { entity_names = { "stone-furnace" } }
+			rule.scope = {}
+			rule.when = { predicate = "factorio-rules:inside-zone", zone_id = id }
+			assert(remote.call("factorio_rules", "validate_authored_rule", rule))
+			assert(remote.call("factorio_rules", "register_rule", rule))
+			local function build(target, position, force, ghost)
+				return target.create_entity({
+					name = ghost and "entity-ghost" or "stone-furnace",
+					inner_name = ghost and "stone-furnace" or nil,
+					position = position,
+					force = force or "player",
+					raise_built = true,
+				})
+			end
+			for _, source in ipairs({ "on_built_entity", "on_robot_built_entity" }) do
+				local entity = assert(surface.create_entity({
+					name = "stone-furnace",
+					position = { 80, 80 },
+					force = "player",
+				}))
+				dispatch(source, { entity = entity })
+				assert(not entity.valid)
+			end
+			local denied = build(surface, { 80, 80 })
+			assert(not denied or not denied.valid)
+			local edge = build(surface, { 85, 80 }, nil, true)
+			assert(not edge or not edge.valid)
+			local allowed = assert(build(surface, { 90, 80 }))
+			assert(allowed.valid)
+			allowed.destroy()
+			rule.when = { ["not"] = rule.when }
+			assert(remote.call("factorio_rules", "replace_rule", rule))
+			local other = game.create_surface("zone-other", { width = 64, height = 64 })
+			local unaffected = assert(build(other, { 0, 0 }))
+			assert(unaffected.valid)
+			local enemy = assert(build(surface, { 90, 80 }, "enemy"))
+			assert(enemy.valid)
+			enemy.destroy()
+			rule.enabled = false
+			assert(remote.call("factorio_rules", "replace_rule", rule))
+			game.delete_surface(other)
+		end,
+	},
 	{
 		name = "application catalogue validates real prototypes and available handlers",
 		run = function()
@@ -687,14 +814,20 @@ local checks = {
 	},
 }
 
-script.on_init(function()
-	local surface = game.surfaces[1]
+script.on_nth_tick(1, function()
+	script.on_nth_tick(1, nil)
+	local gui_mode = script.mod_name == "factorio-rules-test"
+	local ran = 0
 	for _, check in ipairs(checks) do
-		local ok, err = pcall(check.run, surface)
-		if not ok then
-			error("[factorio-rules integration] FAIL: " .. check.name .. ": " .. tostring(err))
+		if (check.requires_player == true) == gui_mode then
+			local ok, err = pcall(check.run, game.surfaces[1])
+			if not ok then
+				error("[factorio-rules integration] FAIL: " .. check.name .. ": " .. tostring(err))
+			end
+			ran = ran + 1
+			log("[factorio-rules integration] PASS: " .. check.name)
 		end
-		log("[factorio-rules integration] PASS: " .. check.name)
 	end
-	log("[factorio-rules integration] ALL TESTS PASSED")
+	assert(ran > 0, "no integration checks ran")
+	log("[factorio-rules integration] " .. (gui_mode and "GUI" or "HEADLESS") .. " TESTS PASSED")
 end)

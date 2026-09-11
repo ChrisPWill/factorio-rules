@@ -1,3 +1,4 @@
+local Zones = require("lib.zones")
 local M = {}
 M.SHORTCUT_NAME = "factorio-rules-manage-rules"
 M.FRAME_NAME = "factorio-rules-rule-manager"
@@ -14,7 +15,11 @@ local function provenance(rule)
 end
 
 local function zone_caption(rule)
-	local ids = rule.zone_ids or {}
+	local ids = {}
+	for id in pairs(Zones.referenced_ids(rule)) do
+		ids[#ids + 1] = id
+	end
+	table.sort(ids)
 	if #ids == 0 then
 		return "Zones: none"
 	end
@@ -76,6 +81,24 @@ function M.new(options)
 				caption = "Reset",
 				tags = { action = "reset", rule_id = rule.id },
 			})
+		end
+		if options.zones then
+			list.add({ type = "label", caption = "Custom zones" })
+			for _, zone in ipairs(options.zones()) do
+				local row = list.add({ type = "flow", direction = "horizontal" })
+				row.add({
+					type = "textfield",
+					text = zone.name or zone.id,
+					tags = { action = "rename-zone", zone_id = zone.id },
+					tooltip = "Press Enter to rename",
+				})
+				row.add({ type = "label", caption = zone.id })
+				row.add({
+					type = "button",
+					caption = "Redraw",
+					tags = { action = "edit-zone", zone_id = zone.id },
+				})
+			end
 		end
 	end
 
@@ -142,6 +165,17 @@ function M.new(options)
 					.. tostring(summary.unused or 0)
 			end
 			return true, nil
+		elseif action == "edit-zone" then
+			local ok, errors = options.edit_zone(event.player_index, element.tags.zone_id)
+			if ok then
+				ui:close(event.player_index)
+			end
+			return ok, errors
+		elseif action == "rename-zone" then
+			local ok, errors = options.rename_zone(element.tags.zone_id, element.text)
+			if not ok then
+				return nil, errors
+			end
 		elseif action == "reset" then
 			assert(options.clear_override(id))
 		elseif action == "enabled" then

@@ -2,15 +2,7 @@ local serializable = require("lib.serializable")
 
 local M = {}
 
-function M.referenced_ids(rules)
-	local referenced = {}
-	for _, rule in ipairs(rules or {}) do
-		for _, zone_id in ipairs(rule.zone_ids or {}) do
-			referenced[zone_id] = true
-		end
-	end
-	return referenced
-end
+M.referenced_ids = require("lib.rules.catalogue").referenced_zones
 
 function M.delete_unused(definitions, rules)
 	local referenced = M.referenced_ids(rules)
