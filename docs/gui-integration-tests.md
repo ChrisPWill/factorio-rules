@@ -1,30 +1,35 @@
 # Headless GUI integration tests
 
-Factorio 2.0.60 can use GUI objects belonging to a player already stored in a save,
+Factorio 2.0.77 can use GUI objects belonging to a player already stored in a save,
 without a client connected. The engine does not expose `game.create_player`.
 
-Run all checks, including the GUI suite, with a compatible save:
+Run all checks, including the GUI suite:
 
 ```sh
-FACTORIO_PLAYER_SAVE="/path/to/save.zip" make all-checks
+make all-checks
 ```
 
 The command downloads/verifies the pinned headless binary if needed, runs the usual
-Nix and scenario checks, then loads a temporary copy of the save for GUI tests.
-Without `FACTORIO_PLAYER_SAVE`, it explicitly reports that GUI tests were not run.
+Nix and generated-scenario checks, then loads a temporary copy of the checked-in
+player fixture for GUI tests. The fixture and its checksum are required: a missing
+or altered fixture fails the command and CI.
 To run only the GUI suite with an already available binary:
 
 ```sh
-FACTORIO_BIN=".cache/factorio/2.0.60/factorio/bin/x64/factorio" \
-FACTORIO_PLAYER_SAVE="/path/to/save.zip" make integration-test
+FACTORIO_BIN=".cache/factorio/2.0.77/factorio/bin/x64/factorio" \
+FACTORIO_PLAYER_SAVE="tests/fixtures/gui-test-fixture.zip" make integration-test
 ```
 
-Use a Factorio 2.0.60-compatible save with at least one player and a cursor inventory.
-Newer saves cannot necessarily be loaded by the pinned binary. A small vanilla save
-with a character on Nauvis is preferred. A missing player makes the GUI suite fail;
-it never silently skips the tests. The test server disables public/LAN advertising
-and auto-pause. It works exclusively on temporary save/mod copies, including any
-save made on server shutdown. Personal saves are not committed or uploaded.
+`tests/fixtures/gui-test-fixture.zip` was created in Factorio 2.0.77 as a minimal
+Freeplay save on Nauvis, using seed `3885402781`, with enemies disabled and only the
+official `base`, `space-age`, `quality`, and `elevated-rails` mods. It contains one
+player with a character and cursor inventory, no factory, and no personal game data.
+Its SHA-256 is recorded in `tests/fixtures/gui-test-fixture.sha256`.
+
+The test server disables public/LAN advertising and auto-pause. It works exclusively
+on temporary save/mod copies, including any save made on server shutdown; the
+checked-in source fixture is never modified. Set `FACTORIO_PLAYER_SAVE` to a separate
+compatible save only when testing that save deliberately.
 
 The harness adds a temporary test mod, triggering configuration-change initialization
 of the real mod, and injects a test-only event driver into the temporary package.
@@ -39,5 +44,4 @@ checks enforcement and does not require a player. Distinct success markers preve
 one suite's completion from masking failure of the other.
 
 This verifies runtime API use and event routing, not visual layout or mouse input.
-Save/load without a configuration change remains part of KAN-36. A minimal,
-redistributable player fixture is still needed before GUI tests can run in CI.
+Save/load without a configuration change remains part of KAN-36.

@@ -1,6 +1,7 @@
 """Regression tests for packaging and the Lua harness's failure contract."""
 
 import importlib.util
+import hashlib
 import os
 from pathlib import Path
 import subprocess
@@ -33,6 +34,17 @@ class PackagingTests(unittest.TestCase):
                 self.assertIn(f"{stem}/control.lua", names)
                 self.assertTrue(all(name.startswith(f"{stem}/") for name in names))
                 self.assertFalse(any("tests/" in name or "AGENTS" in name for name in names))
+
+
+class GuiFixtureTests(unittest.TestCase):
+    def test_fixture_is_present_and_matches_its_pinned_checksum(self):
+        fixture = ROOT / "tests/fixtures/gui-test-fixture.zip"
+        checksum = ROOT / "tests/fixtures/gui-test-fixture.sha256"
+        self.assertTrue(fixture.is_file())
+        self.assertTrue(checksum.is_file())
+        expected, recorded_path = checksum.read_text().split()
+        self.assertEqual(recorded_path, "tests/fixtures/gui-test-fixture.zip")
+        self.assertEqual(hashlib.sha256(fixture.read_bytes()).hexdigest(), expected)
 
 
 class LocalInstallTests(unittest.TestCase):

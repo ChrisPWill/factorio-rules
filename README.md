@@ -24,7 +24,7 @@ mod zip. Both commands reuse the Nix store, so running one after the other does 
 repeat the build.
 
 Run `make all-checks` to include the real Factorio integration scenario. On its
-first run, the command downloads Factorio headless 2.0.60, verifies its SHA-256
+first run, the command downloads Factorio headless 2.0.77, verifies its SHA-256
 digest, and extracts it under the gitignored `.cache/factorio/` directory. Later
 runs reuse that download and binary.
 
@@ -85,8 +85,8 @@ captured log. Temporary saves and mod state are removed after each run.
 ## Continuous integration
 
 Pull requests and pushes to `main` run `nix flake check`, build the same flake
-package, and run the Factorio 2.0.60 headless scenario. The headless
-download is checked against its published SHA-256 digest. Successful runs publish
+package, and run the Factorio 2.0.77 generated and player-GUI scenarios. The headless
+download and checked-in GUI fixture are verified by SHA-256 digest. Successful runs publish
 `factorio-rules_0.1.0.zip` as the `factorio-rules` workflow artifact.
 
 The integration scenario stays separate because Factorio is downloaded outside
