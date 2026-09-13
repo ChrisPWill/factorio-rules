@@ -36,7 +36,8 @@ data:extend({
 		icon_size = 56,
 		small_icon = "__base__/graphics/icons/shortcut-toolbar/mip/alt-mode-x24.png",
 		small_icon_size = 24,
-		order = "z[factorio-rules]-a",
+		-- Keep the primary management action at the leading shortcut-toolbar position.
+		order = "a[factorio-rules]",
 	},
 	{
 		type = "shortcut",

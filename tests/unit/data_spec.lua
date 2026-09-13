@@ -26,6 +26,7 @@ return {
 			local manager = assert(shortcuts["factorio-rules-manage-rules"])
 			assert(manager.action == "lua")
 			assert(manager.icon == overlays.icon and manager.small_icon == overlays.small_icon)
+			assert(manager.order == "a[factorio-rules]")
 		end,
 	},
 }
