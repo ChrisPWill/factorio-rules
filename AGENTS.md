@@ -6,6 +6,18 @@
    work and after describing or pushing a change before making further edits.
 3. Keep Jira issue statuses aligned with actual progress: mark work in progress
    when it starts and done only after its acceptance criteria are verified.
+4. Run `make all-checks` before marking implementation work done. This includes
+   Nix checks, unit tests, generated Factorio tests, and the player-GUI fixture.
+5. Factorio behavior changes need integration coverage through the real
+   application boundary and registered handlers. Do not rely only on isolated
+   helpers or unsupported synthetic GUI/construction events.
+6. Route save-owned rule mutations through `mutate_rules`. Preserve revision
+   checks, source ownership, and atomic failure behavior; UI code must not write
+   registry state directly.
+7. Keep `tests/fixtures/gui-test-fixture.zip` minimal and free of personal or
+   factory data. Update its checksum and setup documentation whenever it changes.
+8. When changing the pinned Factorio version, update the download checksum, CI,
+   documentation, cache examples, and run the full integration suite together.
 
 ## Software design
 
