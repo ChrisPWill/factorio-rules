@@ -20,6 +20,7 @@ local ZoneEditing = require("runtime.zone_editing")
 local Catalogue = require("lib.rules.catalogue")
 local ZoneStore = require("runtime.zone_store")
 local RuleAuthoring = require("lib.rules.authoring")
+local Permissions = require("runtime.permissions")
 
 local M = {}
 
@@ -57,6 +58,9 @@ function M.register(runtime)
 	end
 
 	local logger = Logger.new(settings, log)
+	local permissions = Permissions.new(function(index)
+		return game.get_player(index)
+	end)
 	local extensions = Extensions.new()
 
 	local adapters = AdapterRegistry.new()
@@ -213,6 +217,9 @@ function M.register(runtime)
 		end
 		if not authoring then
 			authoring = RuleAuthoring.new(storage().rules, {
+				authorize = function(context)
+					return permissions:authorize(context)
+				end,
 				validate = function(rule)
 					return catalogue:validate(rule)
 				end,
@@ -270,6 +277,9 @@ function M.register(runtime)
 		mutate = function(commands, context)
 			return authoring:execute(commands, context)
 		end,
+		can_edit = function(index)
+			return permissions:can_edit(index)
+		end,
 		revision = function(id)
 			return authoring:revision(id)
 		end,
@@ -314,6 +324,9 @@ function M.register(runtime)
 		end,
 		get = function(id)
 			return ZoneStore.new(storage().rules):get(id)
+		end,
+		authorize = function(index)
+			return permissions:can_edit(index), "only an admin can edit rules"
 		end,
 		save = function(zone)
 			return ZoneStore.new(storage().rules):save(zone)
@@ -631,6 +644,9 @@ function M.register(runtime)
 		zones = zone_registry()
 		rule_registry = RuleRegistry.new(storage().rules)
 		authoring = RuleAuthoring.new(storage().rules, {
+			authorize = function(context)
+				return permissions:authorize(context)
+			end,
 			validate = function(rule)
 				return catalogue:validate(rule)
 			end,

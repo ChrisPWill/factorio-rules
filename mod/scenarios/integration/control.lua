@@ -31,6 +31,7 @@ local checks = {
 				end
 			end
 			assert(player, "requires a player-bearing save")
+			player.admin = true
 			local surface = player.surface
 			local id = assert(remote.call("factorio_rules", "save_zone", {
 				name = "Edit me",

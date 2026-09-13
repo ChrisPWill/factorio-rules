@@ -39,6 +39,10 @@ function M.new(options)
 		return options.get_player(index)
 	end
 
+	local function can_edit(index)
+		return not options.can_edit or options.can_edit(index)
+	end
+
 	local function refresh(index)
 		local target = player(index)
 		local frame = target and target.gui.screen[M.FRAME_NAME]
@@ -176,6 +180,9 @@ function M.new(options)
 			ui:close(event.player_index)
 			return true
 		elseif action == "delete-unused-zones" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			assert(options.delete_unused_zones())
 			options.rebuild()
 			refresh(event.player_index)
@@ -188,17 +195,26 @@ function M.new(options)
 			end
 			return true, nil
 		elseif action == "edit-zone" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			local ok, errors = options.edit_zone(event.player_index, element.tags.zone_id)
 			if ok then
 				ui:close(event.player_index)
 			end
 			return ok, errors
 		elseif action == "rename-zone" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			local ok, errors = options.rename_zone(element.tags.zone_id, element.text)
 			if not ok then
 				return nil, errors
 			end
 		elseif action == "reset" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			assert(
 				options.mutate(
 					{ { kind = "reset", id = id, revision = options.revision(id) } },
@@ -206,6 +222,9 @@ function M.new(options)
 				)
 			)
 		elseif action == "enabled" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			assert(options.mutate({
 				{
 					kind = "set-enabled",
@@ -215,6 +234,9 @@ function M.new(options)
 				},
 			}, { origin = "gui", player_index = event.player_index }))
 		elseif action == "priority" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
 			local value = tonumber(element.text)
 			if not value or value % 1 ~= 0 then
 				return false, "priority must be an integer"

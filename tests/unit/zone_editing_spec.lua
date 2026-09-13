@@ -3,6 +3,21 @@ local Store = require("runtime.zone_store")
 
 return {
 	{
+		name = "rejects zone edits when authorization fails",
+		run = function()
+			local editor = ZoneEditing.new({
+				get_player = function()
+					return { cursor_stack = {} }
+				end,
+				authorize = function()
+					return false, "only an admin can edit rules"
+				end,
+			})
+			local ok, error_message = editor:begin(2)
+			assert(not ok and error_message == "only an admin can edit rules")
+		end,
+	},
+	{
 		name = "redraw preserves zone identity and rejects a different surface",
 		run = function()
 			local store = Store.new({ zones = {} })

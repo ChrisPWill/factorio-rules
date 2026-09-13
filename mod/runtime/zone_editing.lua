@@ -8,6 +8,12 @@ function M.new(options)
 	local editing = {}
 
 	function editor.begin(_self, player_index, zone_id)
+		if options.authorize then
+			local allowed, errors = options.authorize(player_index)
+			if not allowed then
+				return nil, errors
+			end
+		end
 		local player = options.get_player(player_index)
 		if not player or not player.cursor_stack then
 			return nil, "player cursor unavailable"
@@ -23,6 +29,12 @@ function M.new(options)
 	function editor.select(_self, event)
 		if event.item ~= M.TOOL_NAME then
 			return false
+		end
+		if options.authorize then
+			local allowed, errors = options.authorize(event.player_index)
+			if not allowed then
+				return nil, errors
+			end
 		end
 		local area = event.area
 		local player = options.get_player(event.player_index)
