@@ -19,6 +19,7 @@ local RuleUI = require("runtime.rule_ui")
 local ZoneEditing = require("runtime.zone_editing")
 local Catalogue = require("lib.rules.catalogue")
 local ZoneStore = require("runtime.zone_store")
+local RuleAuthoring = require("lib.rules.authoring")
 
 local M = {}
 
@@ -65,6 +66,7 @@ function M.register(runtime)
 		action_requirements = extensions:action_requirements(),
 	})
 	local rule_registry
+	local authoring
 	local rollback = Rollback.factorio({
 		get_player = function(index)
 			return game.get_player(index)
@@ -160,6 +162,7 @@ function M.register(runtime)
 
 	local zones
 	local zone_editor
+	local catalogue
 
 	local function overlay_entries()
 		local entries = {}
@@ -208,6 +211,24 @@ function M.register(runtime)
 		if not rule_registry then
 			rule_registry = RuleRegistry.new(storage().rules)
 		end
+		if not authoring then
+			authoring = RuleAuthoring.new(storage().rules, {
+				validate = function(rule)
+					return catalogue:validate(rule)
+				end,
+				stage = function(rules)
+					local staged_compiler = Compiler.new({
+						predicate_requirements = extensions:predicate_requirements(),
+						action_requirements = extensions:action_requirements(),
+					})
+					local _, errors = staged_compiler:replace(rules)
+					if errors then
+						return nil, errors
+					end
+					return true
+				end,
+			})
+		end
 		local migrated, migration_errors = rule_registry:migrate({
 			framework_schema_version = 1,
 			source_versions = { ["factorio-rules"] = "0.1.0" },
@@ -244,13 +265,13 @@ function M.register(runtime)
 			return game.get_player(index)
 		end,
 		effective_rules = function()
-			return assert(rule_registry:effective())
+			return authoring:list()
 		end,
-		set_override = function(id, fields)
-			return rule_registry:set_override(id, fields)
+		mutate = function(commands, context)
+			return authoring:execute(commands, context)
 		end,
-		clear_override = function(id)
-			return rule_registry:clear_override(id)
+		revision = function(id)
+			return authoring:revision(id)
 		end,
 		delete_unused_zones = function()
 			local kept, removed = Zones.delete_unused(
@@ -450,7 +471,7 @@ function M.register(runtime)
 	predicates[Catalogue.ALWAYS] = function()
 		return true
 	end
-	local catalogue = Catalogue.new({
+	catalogue = Catalogue.new({
 		predicates = predicates,
 		actions = extensions:actions(),
 		reference_exists = function(kind, name)
@@ -540,6 +561,13 @@ function M.register(runtime)
 			end,
 			set_rule_override = function(id, fields)
 				return rule_registry:set_override(id, fields)
+			end,
+			mutate_rules = function(commands)
+				local result, errors = authoring:execute(commands, { origin = "remote" })
+				if result then
+					configure_policy()
+				end
+				return result, errors
 			end,
 			migrate_rules = function(options)
 				return rule_registry:migrate(options)

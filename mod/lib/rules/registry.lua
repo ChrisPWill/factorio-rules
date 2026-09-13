@@ -11,10 +11,32 @@ local function copy(value, path)
 	return result
 end
 
+local REPLACE_FIELDS = {
+	effects = true,
+	scope = true,
+	selector = true,
+	when = true,
+	zone_ids = true,
+}
+
+local function is_array(value)
+	for key in pairs(value or {}) do
+		if type(key) == "number" then
+			return true
+		end
+	end
+	return false
+end
+
 local function merge(left, right)
 	local result = copy(left or {}, "override")
 	for key, value in pairs(right or {}) do
-		if type(value) == "table" and type(result[key]) == "table" then
+		if
+			type(value) == "table"
+			and type(result[key]) == "table"
+			and not REPLACE_FIELDS[key]
+			and not is_array(value)
+		then
 			result[key] = merge(result[key], value)
 		else
 			result[key] = copy(value, "override." .. key)

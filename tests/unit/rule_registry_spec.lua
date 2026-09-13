@@ -60,6 +60,26 @@ return {
 		end,
 	},
 	{
+		name = "replaces condition and collection fields instead of retaining stale values",
+		run = function()
+			local registry = Registry.new({})
+			local base = rule("alpha:one")
+			base.selector = { entity_names = { "iron-chest", "steel-chest" } }
+			base.when = { all = { { predicate = "test:predicate" }, { predicate = "test:other" } } }
+			assert(registry:register(base))
+			assert(registry:set_override("alpha:one", {
+				selector = { entity_names = { "wooden-chest" } },
+				when = { any = { { predicate = "test:new" } } },
+			}))
+			local effective = assert(registry:effective())[1]
+			assert(
+				#effective.selector.entity_names == 1
+					and effective.selector.entity_names[1] == "wooden-chest"
+			)
+			assert(effective.when.any and not effective.when.all)
+		end,
+	},
+	{
 		name = "migrates old sparse overrides transactionally",
 		run = function()
 			local base = rule("alpha:one")

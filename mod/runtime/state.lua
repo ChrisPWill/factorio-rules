@@ -23,6 +23,8 @@ local INITIALIZERS = {
 			override_versions = {},
 			zones = {},
 			next_zone_id = 1,
+			next_rule_id = 1,
+			rule_revisions = {},
 		}
 	end,
 	violations = function()
@@ -62,6 +64,8 @@ function M.initialize(target)
 	target.rules.override_versions = target.rules.override_versions or {}
 	target.rules.zones = target.rules.zones or {}
 	target.rules.next_zone_id = target.rules.next_zone_id or 1
+	target.rules.next_rule_id = target.rules.next_rule_id or 1
+	target.rules.rule_revisions = target.rules.rule_revisions or {}
 	for index = 1, #target.rules.zones do
 		local zone = target.rules.zones[index]
 		local number = tonumber(

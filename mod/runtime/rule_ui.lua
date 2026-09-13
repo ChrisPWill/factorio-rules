@@ -177,15 +177,34 @@ function M.new(options)
 				return nil, errors
 			end
 		elseif action == "reset" then
-			assert(options.clear_override(id))
+			assert(
+				options.mutate(
+					{ { kind = "reset", id = id, revision = options.revision(id) } },
+					{ origin = "gui", player_index = event.player_index }
+				)
+			)
 		elseif action == "enabled" then
-			assert(options.set_override(id, { enabled = element.state }))
+			assert(options.mutate({
+				{
+					kind = "set-enabled",
+					id = id,
+					revision = options.revision(id),
+					enabled = element.state,
+				},
+			}, { origin = "gui", player_index = event.player_index }))
 		elseif action == "priority" then
 			local value = tonumber(element.text)
 			if not value or value % 1 ~= 0 then
 				return false, "priority must be an integer"
 			end
-			assert(options.set_override(id, { priority = value }))
+			assert(options.mutate({
+				{
+					kind = "set-priority",
+					id = id,
+					revision = options.revision(id),
+					priority = value,
+				},
+			}, { origin = "gui", player_index = event.player_index }))
 		end
 		options.rebuild()
 		refresh(event.player_index)

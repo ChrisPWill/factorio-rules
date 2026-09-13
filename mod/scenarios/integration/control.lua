@@ -262,6 +262,50 @@ local checks = {
 		end,
 	},
 	{
+		name = "save-owned authoring transaction rebuilds real construction enforcement",
+		run = function(surface)
+			local transaction = assert(remote.call("factorio_rules", "mutate_rules", {
+				{
+					kind = "create",
+					rule = {
+						schema_version = 1,
+						definition_version = 1,
+						name = "Integration furnace ban",
+						event = { domain = "construction", kind = "entity-built" },
+						selector = { entity_names = { "stone-furnace" }, sources = { "script" } },
+						scope = { surfaces = { surface.name }, forces = { "player" } },
+						when = { predicate = "factorio-rules:always" },
+						effects = {
+							primary = { type = "deny", reason = "Integration transaction" },
+							actions = {},
+						},
+					},
+				},
+			}))
+			local id = transaction.results[1].id
+			local entity = assert(surface.create_entity({
+				name = "stone-furnace",
+				position = { 20, 0 },
+				force = "player",
+			}))
+			dispatch("script_raised_built", { entity = entity })
+			assert(
+				not entity.valid,
+				"transaction-created rule must enforce through the registered handler"
+			)
+			local effective
+			for _, rule in ipairs(remote.call("factorio_rules", "effective_rules")) do
+				if rule.id == id then
+					effective = rule
+				end
+			end
+			assert(effective and effective.provenance.kind == "save")
+			assert(remote.call("factorio_rules", "mutate_rules", {
+				{ kind = "delete", id = id, revision = effective.revision or 2 },
+			}))
+		end,
+	},
+	{
 		name = "seed 3885402781 restricts nearby non-starting resource patches",
 		run = function(surface)
 			local force = game.forces.player

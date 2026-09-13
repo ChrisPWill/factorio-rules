@@ -32,3 +32,26 @@ the reported reason among matching rules and never makes a warning override a de
 
 The remote interface exposes `authoring_catalogue()` and
 `validate_authored_rule(rule)` for data-only inspection and validation.
+
+## Save-owned transactions
+
+`mutate_rules(commands)` is the single write boundary for save-owned construction
+rules. A command has a `kind`, a target `id` where applicable, and the current
+`revision`. It supports `create`, `update`, `duplicate`, `set-enabled`,
+`set-priority`, `delete`, and `reset`. Create and duplicate allocate stable
+`factorio-rules:rule-N` IDs and record `provenance.kind = "save"`; callers cannot
+choose either value. Source-owned rules allow only the sparse enabled/priority
+overrides and reset, while save-owned rules can be replaced or deleted.
+
+A request is an all-or-nothing batch. The boundary copies persisted state, applies
+every command, normalizes and catalogue-validates authored rules, verifies a staged
+compiler, and only then replaces saved state. The application rebuilds active policy
+after a successful transaction. Errors are returned
+as `{ field, message }` diagnostics, so a rejected request leaves rules, overrides,
+compiled enforcement and zone references unchanged. Selectors, scopes, conditions,
+effects and zone lists are replacement fields, which prevents stale entries from a
+previous edit surviving a shorter replacement.
+
+The manager supplies the revision and player index from the server-side GUI event;
+it does not treat GUI element tags as authority. KAN-37 will apply multiplayer
+permission policy at this context boundary.
