@@ -49,6 +49,23 @@ return {
 				player_index = 1,
 			}))
 			assert(deleted == 1)
+			local top = {
+				add = function(spec)
+					assert(spec.name == RuleUI.TOP_BUTTON_NAME)
+					assert(spec.tags.action == "open-manager")
+					return spec
+				end,
+			}
+			local player = { gui = { top = top } }
+			local button_ui = RuleUI.new({
+				get_player = function()
+					return player
+				end,
+				effective_rules = function()
+					return {}
+				end,
+			})
+			assert(button_ui:ensure_button(1))
 		end,
 	},
 }

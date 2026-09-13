@@ -2,6 +2,7 @@ local Zones = require("lib.zones")
 local M = {}
 M.SHORTCUT_NAME = "factorio-rules-manage-rules"
 M.FRAME_NAME = "factorio-rules-rule-manager"
+M.TOP_BUTTON_NAME = "factorio-rules-manage-rules-button"
 
 local function clear(element)
 	for _, child in pairs(element.children) do
@@ -110,6 +111,24 @@ function M.new(options)
 		end
 	end
 
+	function ui.ensure_button(_self, index)
+		local target = player(index)
+		if not target or not target.gui or not target.gui.top then
+			return false
+		end
+		local button = target.gui.top[M.TOP_BUTTON_NAME]
+		if button and button.valid then
+			return true
+		end
+		target.gui.top.add({
+			type = "button",
+			name = M.TOP_BUTTON_NAME,
+			caption = { "shortcut-name.factorio-rules-manage-rules" },
+			tags = { action = "open-manager" },
+		})
+		return true
+	end
+
 	function ui.open(_self, index)
 		local target = player(index)
 		if not target or not target.gui or not target.gui.screen then
@@ -150,7 +169,10 @@ function M.new(options)
 			return false
 		end
 		local action, id = element.tags.action, element.tags.rule_id
-		if action == "close" then
+		if action == "open-manager" then
+			ui:open(event.player_index)
+			return true
+		elseif action == "close" then
 			ui:close(event.player_index)
 			return true
 		elseif action == "delete-unused-zones" then

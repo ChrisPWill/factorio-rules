@@ -618,6 +618,9 @@ function M.register(runtime)
 		State.initialize(storage())
 		prepare_spawn_classification()
 		configure_policy()
+		for _, player in pairs(game.players) do
+			rule_ui:ensure_button(player.index)
+		end
 		discovery:seed(generated_chunk_jobs())
 		logger.debug(message)
 	end
@@ -666,6 +669,7 @@ function M.register(runtime)
 
 	script.on_event(defines.events.on_player_joined_game, function(event)
 		overlays:sync_player(event.player_index)
+		rule_ui:ensure_button(event.player_index)
 	end)
 
 	script.on_event(defines.events.on_chunk_generated, function(event)
