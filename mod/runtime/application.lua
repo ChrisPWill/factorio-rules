@@ -625,12 +625,40 @@ function M.register(runtime)
 		logger.debug(message)
 	end
 
+	-- on_load cannot write storage. Recreate only the in-memory policy graph so
+	-- persisted rules remain authoritative while derived indexes are rebuilt.
+	local function rebuild_loaded_policy()
+		zones = zone_registry()
+		rule_registry = RuleRegistry.new(storage().rules)
+		authoring = RuleAuthoring.new(storage().rules, {
+			validate = function(rule)
+				return catalogue:validate(rule)
+			end,
+			stage = function(rules)
+				local staged_compiler = Compiler.new({
+					predicate_requirements = extensions:predicate_requirements(),
+					action_requirements = extensions:action_requirements(),
+				})
+				local _, errors = staged_compiler:replace(rules)
+				if errors then
+					return nil, errors
+				end
+				return true
+			end,
+		})
+		local effective, errors = rule_registry:effective()
+		assert(effective, errors and table.concat(errors, "; "))
+		local changed, compile_errors = compiler:replace(effective)
+		assert(changed ~= nil, compile_errors and table.concat(compile_errors, "; "))
+	end
+
 	script.on_init(function()
 		activate("Initialized persistent state")
 	end)
 	script.on_configuration_changed(function()
 		activate("Configuration updated")
 	end)
+	script.on_load(rebuild_loaded_policy)
 
 	script.on_event(defines.events.on_lua_shortcut, function(event)
 		if event.prototype_name == Overlays.SHORTCUT_NAME then

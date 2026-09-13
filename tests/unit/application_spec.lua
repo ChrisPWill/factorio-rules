@@ -22,6 +22,9 @@ local function runtime()
 		on_configuration_changed = function(callback)
 			lifecycle.configuration_changed = callback
 		end,
+		on_load = function(callback)
+			lifecycle.load = callback
+		end,
 		on_event = function(event_id, callback)
 			events[event_id] = callback
 		end,
@@ -87,6 +90,7 @@ return {
 			Application.register(api)
 			assert(type(lifecycle.init) == "function")
 			assert(type(lifecycle.configuration_changed) == "function")
+			assert(type(lifecycle.load) == "function")
 			for _, event_id in pairs(event_ids) do
 				assert(type(events[event_id]) == "function")
 			end
@@ -99,6 +103,9 @@ return {
 			lifecycle.configuration_changed()
 			assert(storage.rules == rules)
 			assert(messages[1] == "[factorio-rules] Configuration updated")
+			local saved_rules = storage.rules
+			lifecycle.load()
+			assert(storage.rules == saved_rules)
 		end,
 	},
 }
