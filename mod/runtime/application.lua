@@ -22,6 +22,8 @@ local ZoneStore = require("runtime.zone_store")
 local RuleAuthoring = require("lib.rules.authoring")
 local Permissions = require("runtime.permissions")
 local Capabilities = require("runtime.capabilities")
+local RuleValidation = require("runtime.rule_validation")
+local Event = require("lib.rules.event")
 
 local M = {}
 
@@ -119,6 +121,7 @@ function M.register(runtime)
 		action_requirements = extensions:action_requirements(),
 	})
 	local rule_registry
+	local predicates
 	local authoring
 	local rollback = Rollback.factorio({
 		get_player = function(index)
@@ -316,7 +319,37 @@ function M.register(runtime)
 				end
 			end
 		end
-		local changed, errors = compiler:replace(effective)
+		local event_registry = {}
+		for _, kind in ipairs({ "entity-built", "entity-destroyed" }) do
+			event_registry[Event.key({ domain = "construction", kind = kind })] = true
+		end
+		local active_rules, diagnostics, validation_errors = RuleValidation.validate(effective, {
+			events = event_registry,
+			predicates = (function()
+				local available = {}
+				for name in pairs(predicates) do
+					available[name] = true
+				end
+				return available
+			end)(),
+			actions = (function()
+				local available = {}
+				for name in pairs(extensions:actions()) do
+					available[name] = true
+				end
+				return available
+			end)(),
+		})
+		assert(active_rules, validation_errors and table.concat(validation_errors, "; "))
+		for _, diagnostic in ipairs(diagnostics) do
+			persisted_warnings[#persisted_warnings + 1] = "rule "
+				.. diagnostic.rule_id
+				.. ": unavailable "
+				.. diagnostic.kind
+				.. " "
+				.. diagnostic.name
+		end
+		local changed, errors = compiler:replace(active_rules)
 		assert(changed ~= nil, errors and table.concat(errors, "; "))
 		local capability_ok, capability_errors =
 			capabilities:apply_requirements(compiler:requirements().capabilities)
@@ -513,7 +546,7 @@ function M.register(runtime)
 			State.reset_resource_cache(storage())
 		end,
 	})
-	local predicates = setmetatable(extensions:predicates(), {
+	predicates = setmetatable(extensions:predicates(), {
 		__index = {
 			[NauvisMiner.INSIDE_PREDICATE] = function(context)
 				local inside, err =
