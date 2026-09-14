@@ -56,6 +56,10 @@ function M.register(runtime)
 	local log = function(message)
 		return assert(runtime.log(), "Factorio log function is unavailable")(message)
 	end
+	local source_rules = runtime.source_rules or function()
+		return { NauvisMiner.rule() }
+	end
+	assert(type(source_rules) == "function", "source rule provider must be a function")
 
 	local logger = Logger.new(settings, log)
 	local permissions = Permissions.new(function(index)
@@ -241,12 +245,8 @@ function M.register(runtime)
 			source_versions = { ["factorio-rules"] = "0.1.0" },
 		})
 		assert(migrated, migration_errors and table.concat(migration_errors, "; "))
-		local builtin = NauvisMiner.rule()
-		local source = storage().rules.sources[builtin.provenance.source]
-		if not source or not source.rules[builtin.id] then
-			local registered, register_errors = rule_registry:register(builtin)
-			assert(registered, register_errors and table.concat(register_errors, "; "))
-		end
+		local synced, sync_errors = rule_registry:sync_source("factorio-rules", source_rules())
+		assert(synced, sync_errors and table.concat(sync_errors, "; "))
 		local effective, registry_errors, warnings = rule_registry:effective()
 		assert(effective, registry_errors and table.concat(registry_errors, "; "))
 		local persisted_warnings = rule_registry:state().warnings

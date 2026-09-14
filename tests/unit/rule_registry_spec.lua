@@ -50,6 +50,74 @@ return {
 		end,
 	},
 	{
+		name = "syncs current source defaults without replacing save-owned rules or overrides",
+		run = function()
+			local state = {}
+			local registry = Registry.new(state)
+			local v1 = rule("alpha:one", "v1")
+			v1.priority = 1
+			assert(registry:sync_source("alpha", { v1 }))
+			assert(registry:set_override("alpha:one", { priority = 9 }))
+			local saved = rule("alpha:save", "saved")
+			saved.provenance.kind = "save"
+			assert(registry:register(saved))
+
+			local v2 = rule("alpha:one", "v2")
+			v2.priority = 2
+			assert(registry:sync_source("alpha", { v2 }))
+			local effective = assert(registry:effective())
+			assert(effective[1].effects.primary.reason == "v2")
+			assert(effective[1].priority == 9)
+			assert(effective[2].id == "alpha:save")
+			assert(registry:clear_override("alpha:one"))
+			effective = assert(registry:effective())
+			assert(effective[1].priority == 2)
+		end,
+	},
+	{
+		name = "uses declared patch order and records the winning field owner",
+		run = function()
+			local registry = Registry.new({})
+			assert(registry:register(rule("alpha:one")))
+			assert(registry:override("alpha:one", { priority = 2 }, "later", 20))
+			assert(registry:override("alpha:one", { priority = 1 }, "earlier", 10))
+			local effective = assert(registry:effective())[1]
+			assert(effective.priority == 2)
+			assert(effective.provenance.fields.priority.source == "later")
+			assert(effective.provenance.fields.priority.kind == "override")
+		end,
+	},
+	{
+		name = "removes absent source definitions while retaining overrides for restoration",
+		run = function()
+			local registry = Registry.new({})
+			assert(registry:sync_source("alpha", { rule("alpha:one") }))
+			assert(registry:set_override("alpha:one", { enabled = false }))
+			assert(registry:sync_source("alpha", {}))
+			local effective, _, warnings = registry:effective()
+			assert(#effective == 0)
+			assert(#warnings == 1 and warnings[1]:find("orphaned", 1, true))
+			assert(registry:sync_source("alpha", { rule("alpha:one") }))
+			effective = assert(registry:effective())
+			assert(#effective == 1 and effective[1].enabled == false)
+		end,
+	},
+	{
+		name = "inspects effective rules without changing persisted state",
+		run = function()
+			local state = {}
+			local registry = Registry.new(state)
+			assert(registry:register(rule("alpha:one")))
+			assert(registry:override("alpha:one", { priority = 2 }, "beta:patch"))
+			assert(registry:override("alpha:one", { enabled = false }, "gamma:patch"))
+			local original_sequence = state.patches[1].sequence
+			local effective = assert(registry:effective())
+			effective[1].priority = 99
+			assert(state.patches[1].sequence == original_sequence)
+			assert(assert(registry:effective())[1].priority == 2)
+		end,
+	},
+	{
 		name = "retains and warns about orphaned save overrides",
 		run = function()
 			local registry = Registry.new({ overrides = { ["gone:rule"] = { enabled = false } } })

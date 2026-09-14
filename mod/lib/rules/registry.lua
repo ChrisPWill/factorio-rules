@@ -126,7 +126,46 @@ local function registry_for(state)
 		return true, nil
 	end
 
-	function registry.override(_self, id, fields, source)
+	-- Reconcile a code-owned source on configuration changes. Save-authored rules
+	-- share the source namespace but remain authoritative save data.
+	function registry.sync_source(_self, source, rules)
+		if type(source) ~= "string" or source == "" then
+			return nil, { "source is required" }
+		end
+		if type(rules) ~= "table" then
+			return nil, { "source rules must be an array" }
+		end
+		local normalized = {}
+		for _, rule in ipairs(rules) do
+			local value, errors = normalize(rule)
+			if not value then
+				return nil, errors
+			end
+			local source_ok, source_errors = validate_source(value.id, source)
+			if not source_ok or value.provenance.source ~= source then
+				return nil, source_errors or { "rule source must match " .. source }
+			end
+			if value.provenance.kind == "save" then
+				return nil, { "source sync cannot register save-owned rule " .. value.id }
+			end
+			if normalized[value.id] then
+				return nil, { "duplicate source rule " .. value.id }
+			end
+			normalized[value.id] = value
+		end
+		local entry = source_order(state, source)
+		for id, existing in pairs(entry.rules) do
+			if existing.provenance.kind ~= "save" then
+				entry.rules[id] = nil
+			end
+		end
+		for id, rule in pairs(normalized) do
+			entry.rules[id] = rule
+		end
+		return true, nil
+	end
+
+	function registry.override(_self, id, fields, source, order)
 		if type(id) ~= "string" or not id:match("^[%w_-]+:[%w_.-]+$") then
 			return nil, { "override rule id must use the namespace:rule-name format" }
 		end
@@ -136,18 +175,22 @@ local function registry_for(state)
 		if type(source) ~= "string" or source == "" then
 			return nil, { "override source is required" }
 		end
+		if order ~= nil and (type(order) ~= "number" or order % 1 ~= 0) then
+			return nil, { "override order must be an integer" }
+		end
 		state.patches[#state.patches + 1] = {
 			sequence = state.next_patch,
 			kind = "override",
 			id = id,
 			source = source,
+			order = order,
 			fields = copy(fields, "override.fields"),
 		}
 		state.next_patch = state.next_patch + 1
 		return true, nil
 	end
 
-	function registry.replace_external(_self, id, rule, source)
+	function registry.replace_external(_self, id, rule, source, order)
 		local normalized, errors = normalize(rule)
 		if not normalized then
 			return nil, errors
@@ -158,11 +201,15 @@ local function registry_for(state)
 		if type(source) ~= "string" or source == "" then
 			return nil, { "replacement source is required" }
 		end
+		if order ~= nil and (type(order) ~= "number" or order % 1 ~= 0) then
+			return nil, { "replacement order must be an integer" }
+		end
 		state.patches[#state.patches + 1] = {
 			sequence = state.next_patch,
 			kind = "replacement",
 			id = id,
 			source = source,
+			order = order,
 			rule = normalized,
 		}
 		state.next_patch = state.next_patch + 1
@@ -254,7 +301,7 @@ local function registry_for(state)
 	end
 
 	function registry.effective(_self)
-		local rules, by_id, provenance = {}, {}, {}
+		local rules, by_id, provenance, fields = {}, {}, {}, {}
 		local sources = {}
 		for source, entry in pairs(state.sources) do
 			sources[#sources + 1] = { source = source, entry = entry }
@@ -270,12 +317,17 @@ local function registry_for(state)
 				end
 				by_id[id] = copy(rule, "rules." .. id)
 				provenance[id] = { { source = source.source, kind = "source" } }
+				fields[id] = { ["*"] = { source = source.source, kind = "source" } }
 			end
 		end
-		table.sort(state.patches, function(left, right)
-			return left.sequence < right.sequence
+		local patches = copy(state.patches, "patches")
+		table.sort(patches, function(left, right)
+			local left_order = left.order or left.sequence
+			local right_order = right.order or right.sequence
+			return left_order < right_order
+				or (left_order == right_order and left.sequence < right.sequence)
 		end)
-		for _, patch in ipairs(state.patches) do
+		for _, patch in ipairs(patches) do
 			if by_id[patch.id] then
 				if patch.kind == "replacement" then
 					by_id[patch.id] = copy(patch.rule, "replacement." .. patch.id)
@@ -286,19 +338,30 @@ local function registry_for(state)
 					source = patch.source,
 					kind = patch.kind,
 				}
+				if patch.kind == "replacement" then
+					fields[patch.id] = { ["*"] = { source = patch.source, kind = patch.kind } }
+				else
+					for field in pairs(patch.fields) do
+						fields[patch.id][field] = { source = patch.source, kind = patch.kind }
+					end
+				end
 			end
 		end
 		local warnings = {}
-		for id, fields in pairs(state.overrides) do
+		for id, override_fields in pairs(state.overrides) do
 			if by_id[id] then
-				by_id[id] = merge(by_id[id], fields)
+				by_id[id] = merge(by_id[id], override_fields)
 				provenance[id][#provenance[id] + 1] = { source = "save", kind = "override" }
+				for field in pairs(override_fields) do
+					fields[id][field] = { source = "save", kind = "override" }
+				end
 			else
 				warnings[#warnings + 1] = "orphaned override retained for " .. id
 			end
 		end
 		for id, rule in pairs(by_id) do
-			rule.provenance = merge(rule.provenance, { lineage = provenance[id] })
+			rule.provenance =
+				merge(rule.provenance, { lineage = provenance[id], fields = fields[id] })
 			rules[#rules + 1] = rule
 		end
 		table.sort(rules, function(left, right)

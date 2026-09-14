@@ -1,4 +1,5 @@
 local Application = require("runtime.application")
+local NauvisMiner = require("lib.builtin.nauvis_miner")
 
 local function runtime()
 	local lifecycle = {}
@@ -16,6 +17,7 @@ local function runtime()
 		on_runtime_mod_setting_changed = 8,
 	}
 	local nth_ticks = {}
+	local rules = nil
 	local script_api = {
 		on_init = function(callback)
 			lifecycle.init = callback
@@ -80,8 +82,22 @@ local function runtime()
 				messages[#messages + 1] = message
 			end
 		end,
+		source_rules = function()
+			return rules or { NauvisMiner.rule() }
+		end,
 	}
-	return result, storage, settings, lifecycle, events, interfaces, messages, event_ids, nth_ticks
+	return result,
+		storage,
+		settings,
+		lifecycle,
+		events,
+		interfaces,
+		messages,
+		event_ids,
+		nth_ticks,
+		function(value)
+			rules = value
+		end
 end
 
 local function copy(value)
@@ -119,8 +135,11 @@ return {
 	{
 		name = "registers one application boundary and shares lifecycle activation",
 		run = function()
-			local api, storage, settings, lifecycle, events, interfaces, messages, event_ids, nth_ticks =
-				runtime()
+			local fixture = { runtime() }
+			local api, storage, settings, lifecycle, events =
+				fixture[1], fixture[2], fixture[3], fixture[4], fixture[5]
+			local interfaces, messages, event_ids = fixture[6], fixture[7], fixture[8]
+			local nth_ticks, set_rules = fixture[9], fixture[10]
 			Application.register(api)
 			assert(type(lifecycle.init) == "function")
 			assert(type(lifecycle.configuration_changed) == "function")
@@ -134,8 +153,15 @@ return {
 			assert(storage.rules.schema_version == 1)
 			local rules = storage.rules
 			settings.global["factorio-rules-debug"].value = true
+			local updated = NauvisMiner.rule()
+			updated.effects.primary.reason = "updated source default"
+			set_rules({ updated })
 			lifecycle.configuration_changed()
 			assert(storage.rules == rules)
+			assert(
+				interfaces.factorio_rules.effective_rules()[1].effects.primary.reason
+					== "updated source default"
+			)
 			assert(messages[1] == "[factorio-rules] Configuration updated")
 			local saved_rules = storage.rules
 			storage.resource_discovery.queue = {
