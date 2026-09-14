@@ -1,4 +1,5 @@
 local Zones = require("lib.zones")
+local Drafts = require("lib.rules.drafts")
 local M = {}
 M.SHORTCUT_NAME = "factorio-rules-manage-rules"
 M.FRAME_NAME = "factorio-rules-rule-manager"
@@ -34,6 +35,7 @@ end
 function M.new(options)
 	assert(type(options) == "table", "rule UI options are required")
 	local ui = {}
+	local drafts = Drafts.new()
 
 	local function player(index)
 		return options.get_player(index)
@@ -106,6 +108,16 @@ function M.new(options)
 			})
 			details.add({
 				type = "button",
+				caption = "Edit",
+				tags = { action = "edit-rule", rule_id = rule.id, revision = options.revision and options.revision(rule.id) },
+			})
+			details.add({
+				type = "button",
+				caption = "Duplicate",
+				tags = { action = "duplicate-rule", rule_id = rule.id, revision = options.revision and options.revision(rule.id) },
+			})
+			details.add({
+				type = "button",
 				caption = "Reset",
 				tags = {
 					action = "reset",
@@ -134,12 +146,44 @@ function M.new(options)
 		end
 	end
 
+	local function open_editor(index, rule, duplicate)
+		local target = player(index)
+		if not target or not target.gui or not target.gui.screen then
+			return nil, "player GUI unavailable"
+		end
+		ui:close(index)
+		local snapshot, err = drafts.open(index, rule, options.revision and options.revision(rule.id))
+		if not snapshot then
+			return nil, err
+		end
+		if duplicate then
+			snapshot.rule.id = nil
+			snapshot.rule.provenance = nil
+			drafts.update(index, snapshot.rule)
+		end
+		local frame = target.gui.screen.add({
+			 type = "frame", name = M.FRAME_NAME, caption = duplicate and "Duplicate rule" or "Edit rule", direction = "vertical",
+		})
+		frame.auto_center = true
+		frame.style.minimal_width = 700
+		frame.add({ type = "label", caption = "Changes are saved only when you press Save." })
+		frame.add({ type = "label", caption = "Name" })
+		frame.add({ type = "textfield", name = M.FRAME_NAME .. "-name", text = snapshot.rule.name or "", tags = { action = "draft-name" } })
+		frame.add({ type = "label", caption = "Priority" })
+		frame.add({ type = "textfield", name = M.FRAME_NAME .. "-priority", text = tostring(snapshot.rule.priority or 0), tags = { action = "draft-priority" } })
+		local actions = frame.add({ type = "flow", direction = "horizontal" })
+		actions.add({ type = "button", caption = "Save", tags = { action = "save-draft", rule_id = duplicate and "" or rule.id, duplicate = duplicate } })
+		actions.add({ type = "button", caption = "Cancel", tags = { action = "cancel-draft" } })
+		return true
+	end
+
 	function ui.close(_self, index)
 		local target = player(index)
 		local frame = target and target.gui.screen[M.FRAME_NAME]
 		if frame then
 			frame.destroy()
 		end
+		drafts.cancel(index)
 	end
 
 	function ui.ensure_button(_self, index)
@@ -204,6 +248,53 @@ function M.new(options)
 		end
 		local action, id = element.tags.action, element.tags.rule_id
 		if action == "open-manager" then
+			ui:open(event.player_index)
+			return true
+		elseif action == "edit-rule" or action == "duplicate-rule" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
+			for _, rule in ipairs(options.effective_rules()) do
+				if rule.id == id then
+					local duplicate = action == "duplicate-rule"
+					if action == "edit-rule" and rule.provenance and rule.provenance.kind ~= "save" then
+						duplicate = true
+					end
+					return open_editor(event.player_index, rule, duplicate)
+				end
+			end
+			return false, "rule no longer exists"
+		elseif action == "cancel-draft" then
+			drafts.cancel(event.player_index)
+			ui:open(event.player_index)
+			return true
+		elseif action == "save-draft" then
+			if not can_edit(event.player_index) then
+				return false, "only an admin can edit rules"
+			end
+			local snapshot, err = drafts.snapshot(event.player_index)
+			if not snapshot then
+				return false, err or "draft is not open"
+			end
+			local frame = player(event.player_index).gui.screen[M.FRAME_NAME]
+			local name = frame and frame[M.FRAME_NAME .. "-name"]
+			local priority = frame and frame[M.FRAME_NAME .. "-priority"]
+			if name then snapshot.rule.name = name.text end
+			if priority then
+				snapshot.rule.priority = tonumber(priority.text)
+			end
+			local command
+			if element.tags.duplicate then
+				command = { kind = "create", rule = snapshot.rule }
+			else
+				command = { kind = "update", id = id, revision = snapshot.base_revision, rule = snapshot.rule }
+			end
+			local ok, errors = options.mutate({ command }, { origin = "gui", player_index = event.player_index })
+			if not ok then
+				return false, errors
+			end
+			drafts.cancel(event.player_index)
+			options.rebuild()
 			ui:open(event.player_index)
 			return true
 		elseif action == "close" then
