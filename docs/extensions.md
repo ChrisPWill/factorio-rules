@@ -3,12 +3,13 @@
 Other mods may add declarative rule behavior through the `factorio_rules` remote
 interface. Predicate and action names must be globally namespaced (`mod:name`).
 
-`register_predicate(name, callback, requirements)` calls the callback with the
-normalized rule context, its condition data, and a constrained services table.
-`register_action(name, callback, requirements)` registers a secondary effect
-handler invoked after a warning or denial with the action data, violation record,
-context, and construction boundary. These callbacks do not receive persistent
-storage or the evaluator internals.
+`register_predicate_provider(name, descriptor, requirements)` and
+`register_action_provider(name, descriptor, requirements)` take a data-only
+descriptor: `{ interface = "other-mod", function_name = "predicate" }`. The
+named function must already be exposed by the other mod's remote interface.
+It receives normalized serializable context and condition/action data; it never
+receives persistent storage or evaluator internals. UI and import data cannot
+register providers.
 
 Rules themselves use the registry operations `register_rule`, `replace_rule`,
 `override_rule`, and `replace_external_rule`; IDs remain globally namespaced.

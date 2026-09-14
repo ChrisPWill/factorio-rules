@@ -73,6 +73,7 @@ local function runtime()
 		script = script_api,
 		defines = { events = event_ids, inventory = {} },
 		remote = {
+			interfaces = {},
 			add_interface = function(name, interface)
 				interfaces[name] = interface
 			end,

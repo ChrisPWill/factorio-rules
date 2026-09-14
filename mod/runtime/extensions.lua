@@ -16,7 +16,9 @@ local function requirements(value)
 	return copied
 end
 
-function M.new()
+function M.new(options)
+	options = options or {}
+	local resolve = options.resolve
 	local predicates, actions = {}, {}
 	local predicate_requirements, action_requirements = {}, {}
 	local extensions = {}
@@ -37,6 +39,16 @@ function M.new()
 		actions[name] = callback
 		action_requirements[name] = requirements(requirement)
 		return true, nil
+	end
+
+	function extensions.register_predicate_provider(_self, name, descriptor, requirement)
+		assert(type(resolve) == "function", "extension providers are unavailable")
+		return extensions:register_predicate(name, resolve(descriptor, "predicate"), requirement)
+	end
+
+	function extensions.register_action_provider(_self, name, descriptor, requirement)
+		assert(type(resolve) == "function", "extension providers are unavailable")
+		return extensions:register_action(name, resolve(descriptor, "action"), requirement)
 	end
 
 	function extensions.predicates(_self)

@@ -41,8 +41,35 @@ with zipfile.ZipFile(archive) as source, zipfile.ZipFile(destination / archive.n
         target.writestr(entry, data)
 PYDRIVER
 cat > "$work_dir/mods/mod-list.json" <<'JSON'
-{"mods":[{"name":"base","enabled":true},{"name":"factorio-rules","enabled":true},{"name":"space-age","enabled":true},{"name":"quality","enabled":true},{"name":"elevated-rails","enabled":true}]}
+{"mods":[{"name":"base","enabled":true},{"name":"factorio-rules","enabled":true},{"name":"factorio-rules-provider-test","enabled":true},{"name":"space-age","enabled":true},{"name":"quality","enabled":true},{"name":"elevated-rails","enabled":true}]}
 JSON
+mkdir -p "$work_dir/mods/factorio-rules-provider-test"
+cat > "$work_dir/mods/factorio-rules-provider-test/info.json" <<'JSON'
+{"name":"factorio-rules-provider-test","version":"0.1.0","title":"Rule extension provider test","author":"Test harness","factorio_version":"2.0","dependencies":["factorio-rules"]}
+JSON
+cat > "$work_dir/mods/factorio-rules-provider-test/control.lua" <<'LUA'
+remote.add_interface("factorio-rules-provider-test", {
+  matches = function(context, condition)
+    assert(type(context) == "table" and type(condition) == "table")
+    return condition.value == "match"
+  end,
+  act = function()
+    storage.calls = (storage.calls or 0) + 1
+  end,
+  calls = function() return storage.calls or 0 end,
+})
+script.on_init(function()
+  remote.call("factorio_rules", "register_predicate_provider", "factorio-rules-provider-test:matches", { interface = "factorio-rules-provider-test", function_name = "matches" })
+  remote.call("factorio_rules", "register_action_provider", "factorio-rules-provider-test:act", { interface = "factorio-rules-provider-test", function_name = "act" })
+  remote.call("factorio_rules", "register_rule", {
+    schema_version = 1, definition_version = 1, id = "factorio-rules-provider-test:rule",
+    provenance = { source = "factorio-rules-provider-test", kind = "test" },
+    event = { domain = "construction", kind = "entity-built" }, selector = { entity_names = { "wooden-chest" }, sources = { "script" } }, scope = {},
+    when = { predicate = "factorio-rules-provider-test:matches", value = "match" },
+    effects = { primary = { type = "warn", reason = "provider warning" }, actions = { { type = "factorio-rules-provider-test:act" } } },
+  })
+end)
+LUA
 
 server_arguments=(--map-gen-seed 3885402781 --start-server-load-scenario factorio-rules/integration)
 success_marker="[factorio-rules integration] HEADLESS TESTS PASSED"

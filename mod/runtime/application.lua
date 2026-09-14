@@ -56,6 +56,17 @@ function M.register(runtime)
 	local log = function(message)
 		return assert(runtime.log(), "Factorio log function is unavailable")(message)
 	end
+	local function provider_context(context)
+		return {
+			domain = context.domain,
+			kind = context.kind,
+			surface = context.surface,
+			force = context.force,
+			actor = context.actor,
+			metadata = context.metadata,
+			payload = context.payload,
+		}
+	end
 	local source_rules = runtime.source_rules or function()
 		return { NauvisMiner.rule() }
 	end
@@ -65,7 +76,39 @@ function M.register(runtime)
 	local permissions = Permissions.new(function(index)
 		return game.get_player(index)
 	end)
-	local extensions = Extensions.new()
+	local extensions = Extensions.new({
+		resolve = function(descriptor, kind)
+			assert(type(descriptor) == "table", kind .. " provider descriptor is required")
+			local interface = assert(descriptor.interface, "provider interface is required")
+			local function_name =
+				assert(descriptor.function_name, "provider function name is required")
+			assert(type(interface) == "string" and type(function_name) == "string")
+			assert(remote.interfaces[interface], "unknown provider interface " .. interface)
+			assert(
+				remote.interfaces[interface][function_name],
+				"unknown provider function " .. function_name
+			)
+			if kind == "predicate" then
+				return function(context, condition)
+					return remote.call(
+						interface,
+						function_name,
+						provider_context(context),
+						condition
+					)
+				end
+			end
+			return function(action, entry, context)
+				return remote.call(
+					interface,
+					function_name,
+					action,
+					entry,
+					provider_context(context)
+				)
+			end
+		end,
+	})
 
 	local adapters = AdapterRegistry.new()
 	ConstructionAdapters.register(adapters)
@@ -594,15 +637,17 @@ function M.register(runtime)
 			migrate_rules = function(options)
 				return rule_registry:migrate(options)
 			end,
-			register_predicate = function(name, callback, requirement)
-				local result, errors = extensions:register_predicate(name, callback, requirement)
+			register_predicate_provider = function(name, descriptor, requirement)
+				local result, errors =
+					extensions:register_predicate_provider(name, descriptor, requirement)
 				if result then
 					configure_policy()
 				end
 				return result, errors
 			end,
-			register_action = function(name, callback, requirement)
-				local result, errors = extensions:register_action(name, callback, requirement)
+			register_action_provider = function(name, descriptor, requirement)
+				local result, errors =
+					extensions:register_action_provider(name, descriptor, requirement)
 				if result then
 					configure_policy()
 				end

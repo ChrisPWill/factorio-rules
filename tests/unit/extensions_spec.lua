@@ -3,6 +3,26 @@ local Evaluator = require("lib.rules.evaluator")
 
 return {
 	{
+		name = "binds providers through validated data descriptors",
+		run = function()
+			local extensions = Extensions.new({
+				resolve = function(descriptor, kind)
+					assert(descriptor.interface == "test-provider" and kind == "predicate")
+					return function(_context, condition)
+						return condition.value == 42
+					end
+				end,
+			})
+			assert(
+				extensions:register_predicate_provider(
+					"test:provider",
+					{ interface = "test-provider", function_name = "matches" }
+				)
+			)
+			assert(extensions:predicates()["test:provider"]({}, { value = 42 }, {}))
+		end,
+	},
+	{
 		name = "registers namespaced predicates with constrained services",
 		run = function()
 			local extensions = Extensions.new()

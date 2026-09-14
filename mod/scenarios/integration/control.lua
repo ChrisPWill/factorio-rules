@@ -157,6 +157,25 @@ local checks = {
 		end,
 	},
 	{
+		name = "second mod registers and executes data-only extension providers through remote",
+		run = function(surface)
+			local found = false
+			for _, rule in ipairs(remote.call("factorio_rules", "effective_rules")) do
+				found = found or rule.id == "factorio-rules-provider-test:rule"
+			end
+			assert(found)
+			assert(remote.call("factorio-rules-provider-test", "calls") == 0)
+			local entity = assert(surface.create_entity({
+				name = "wooden-chest",
+				position = { 60, 0 },
+				force = "player",
+			}))
+			dispatch("script_raised_built", { entity = entity })
+			assert(entity.valid)
+			assert(remote.call("factorio-rules-provider-test", "calls") == 1)
+		end,
+	},
+	{
 		name = "rule registry resolves source, patch, save override, and orphan provenance",
 		run = function()
 			local state = {}
