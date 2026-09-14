@@ -199,6 +199,28 @@ function M.register(runtime)
 		return targets
 	end
 
+	local function overlay_targets()
+		local targets = {}
+		for _, surface in pairs(game.surfaces) do
+			for _, force in pairs(game.forces) do
+				if force.name ~= "enemy" and force.name ~= "neutral" then
+					targets[#targets + 1] = {
+						surface = { index = surface.index, name = surface.name },
+						force = { index = force.index, name = force.name },
+					}
+				end
+			end
+		end
+		table.sort(targets, function(left, right)
+			return left.surface.index < right.surface.index
+				or (
+					left.surface.index == right.surface.index
+					and left.force.index < right.force.index
+				)
+		end)
+		return targets
+	end
+
 	local function zone_registry()
 		local definitions = {
 			NauvisMiner.zone(settings.global["factorio-rules-nauvis-spawn-radius"].value),
@@ -222,7 +244,7 @@ function M.register(runtime)
 
 	local function overlay_entries()
 		local entries = {}
-		for _, target in ipairs(spawn_targets()) do
+		for _, target in ipairs(overlay_targets()) do
 			local zone, center = zones:resolve(NauvisMiner.ZONE_ID, target)
 			if zone then
 				entries[#entries + 1] = {
@@ -241,7 +263,7 @@ function M.register(runtime)
 			end
 		end
 		for _, definition in ipairs(storage().rules.zones or {}) do
-			for _, target in ipairs(spawn_targets()) do
+			for _, target in ipairs(overlay_targets()) do
 				local zone, center = zones:resolve(definition.id, target)
 				if zone then
 					entries[#entries + 1] = {
