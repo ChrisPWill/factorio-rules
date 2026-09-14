@@ -101,7 +101,7 @@ return {
 			}))
 			assert(saved.shape.width == 8 and saved.shape.height == 12)
 			assert(saved.anchor.position.x == 6 and saved.anchor.position.y == 10)
-			assert(saved.scope.surfaces[1] == "nauvis" and saved.scope.forces[1] == "player")
+			assert(saved.scope.surfaces[1] == "nauvis" and saved.scope.forces == nil)
 			assert(rebuilt == 1 and stack.value == nil)
 		end,
 	},

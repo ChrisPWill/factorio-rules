@@ -42,7 +42,6 @@ function M.new(options)
 			return nil, "selection context unavailable"
 		end
 		local surface = player.surface
-		local force = player.force
 		local center = {
 			x = (area.left_top.x + area.right_bottom.x) / 2,
 			y = (area.left_top.y + area.right_bottom.y) / 2,
@@ -58,10 +57,14 @@ function M.new(options)
 			previous
 			and (
 				previous.scope.surfaces[1] ~= surface.name
-				or previous.scope.forces[1] ~= force.name
+				or (
+					previous.scope.forces
+					and previous.scope.forces[1]
+					and previous.scope.forces[1] ~= player.force.name
+				)
 			)
 		then
-			return nil, "edit must stay on the same surface and force"
+			return nil, "edit must stay on the same surface and legacy force scope"
 		end
 		zone_id = zone_id or (options.next_id and options.next_id())
 		local saved, errors = options.save({
@@ -69,7 +72,7 @@ function M.new(options)
 			id = zone_id,
 			shape = { type = "rectangle", width = width, height = height },
 			anchor = { type = "absolute", position = center },
-			scope = { surfaces = { surface.name }, forces = { force.name } },
+			scope = { surfaces = { surface.name } },
 		})
 		if not saved then
 			return nil, errors
