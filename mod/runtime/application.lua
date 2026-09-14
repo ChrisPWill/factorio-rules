@@ -247,8 +247,15 @@ function M.register(runtime)
 			local registered, register_errors = rule_registry:register(builtin)
 			assert(registered, register_errors and table.concat(register_errors, "; "))
 		end
-		local effective, registry_errors = rule_registry:effective()
+		local effective, registry_errors, warnings = rule_registry:effective()
 		assert(effective, registry_errors and table.concat(registry_errors, "; "))
+		local persisted_warnings = rule_registry:state().warnings
+		for index = #persisted_warnings, 1, -1 do
+			persisted_warnings[index] = nil
+		end
+		for _, warning in ipairs(warnings) do
+			persisted_warnings[#persisted_warnings + 1] = warning
+		end
 		local known_zones = {}
 		for _, zone in ipairs(zones.list()) do
 			known_zones[zone.id] = true
@@ -257,8 +264,10 @@ function M.register(runtime)
 			for id in pairs(Zones.referenced_ids(rule.when)) do
 				if not known_zones[id] then
 					rule.enabled = false
-					local warnings = rule_registry:state().warnings
-					warnings[#warnings + 1] = "rule " .. rule.id .. ": unavailable zone " .. id
+					persisted_warnings[#persisted_warnings + 1] = "rule "
+						.. rule.id
+						.. ": unavailable zone "
+						.. id
 				end
 			end
 		end
@@ -642,7 +651,7 @@ function M.register(runtime)
 	-- persisted rules remain authoritative while derived indexes are rebuilt.
 	local function rebuild_loaded_policy()
 		zones = zone_registry()
-		rule_registry = RuleRegistry.new(storage().rules)
+		rule_registry = RuleRegistry.load(storage().rules)
 		authoring = RuleAuthoring.new(storage().rules, {
 			authorize = function(context)
 				return permissions:authorize(context)
@@ -666,6 +675,7 @@ function M.register(runtime)
 		assert(effective, errors and table.concat(errors, "; "))
 		local changed, compile_errors = compiler:replace(effective)
 		assert(changed ~= nil, compile_errors and table.concat(compile_errors, "; "))
+		discovery:resume()
 	end
 
 	script.on_init(function()

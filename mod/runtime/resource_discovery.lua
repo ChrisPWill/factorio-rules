@@ -130,7 +130,9 @@ function M.new(options)
 
 	function discovery.resume()
 		local state = options.state()
-		set_active(options, state, has_work(state))
+		-- Event subscriptions are not retained across a Factorio load, while the
+		-- persisted active flag is. Re-register from queued work without writing it.
+		options.set_active(has_work(state))
 	end
 
 	return discovery

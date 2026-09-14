@@ -87,8 +87,7 @@ local function validate_source(id, source)
 	return true, nil
 end
 
-function M.new(target)
-	local state = ensure_state(target or {})
+local function registry_for(state)
 	local registry = {}
 
 	function registry.register(_self, rule)
@@ -289,13 +288,13 @@ function M.new(target)
 				}
 			end
 		end
-		state.warnings = {}
+		local warnings = {}
 		for id, fields in pairs(state.overrides) do
 			if by_id[id] then
 				by_id[id] = merge(by_id[id], fields)
 				provenance[id][#provenance[id] + 1] = { source = "save", kind = "override" }
 			else
-				state.warnings[#state.warnings + 1] = "orphaned override retained for " .. id
+				warnings[#warnings + 1] = "orphaned override retained for " .. id
 			end
 		end
 		for id, rule in pairs(by_id) do
@@ -305,7 +304,7 @@ function M.new(target)
 		table.sort(rules, function(left, right)
 			return left.id < right.id
 		end)
-		return rules, nil
+		return rules, nil, warnings
 	end
 
 	function registry.warnings(_self)
@@ -317,6 +316,21 @@ function M.new(target)
 	end
 
 	return registry
+end
+
+function M.new(target)
+	return registry_for(ensure_state(target or {}))
+end
+
+-- on_load may read persisted state but must never initialize or rewrite it.
+function M.load(target)
+	assert(type(target) == "table", "persisted rule registry state is required")
+	assert(target.schema_version == SCHEMA_VERSION, "unsupported rule registry schema")
+	assert(type(target.sources) == "table", "persisted rule sources are required")
+	assert(type(target.patches) == "table", "persisted rule patches are required")
+	assert(type(target.overrides) == "table", "persisted rule overrides are required")
+	assert(type(target.warnings) == "table", "persisted rule warnings are required")
+	return registry_for(target)
 end
 
 return M

@@ -169,8 +169,8 @@ local checks = {
 			assert(#effective == 1 and effective[1].priority == 101 and not effective[1].enabled)
 			assert(#effective[1].provenance.lineage == 3)
 			assert(registry:set_override("removed:rule", { enabled = false }))
-			assert(registry:effective())
-			assert(#registry:warnings() == 1)
+			local _, _, warnings = registry:effective()
+			assert(#warnings == 1)
 		end,
 	},
 	{

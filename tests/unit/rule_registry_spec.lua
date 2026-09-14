@@ -53,9 +53,9 @@ return {
 		name = "retains and warns about orphaned save overrides",
 		run = function()
 			local registry = Registry.new({ overrides = { ["gone:rule"] = { enabled = false } } })
-			local effective = assert(registry:effective())
+			local effective, _, warnings = registry:effective()
+			assert(effective)
 			assert(#effective == 0)
-			local warnings = registry:warnings()
 			assert(#warnings == 1 and warnings[1]:find("orphaned", 1, true))
 		end,
 	},

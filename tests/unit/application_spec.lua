@@ -15,6 +15,7 @@ local function runtime()
 		on_chunk_generated = 7,
 		on_runtime_mod_setting_changed = 8,
 	}
+	local nth_ticks = {}
 	local script_api = {
 		on_init = function(callback)
 			lifecycle.init = callback
@@ -28,7 +29,9 @@ local function runtime()
 		on_event = function(event_id, callback)
 			events[event_id] = callback
 		end,
-		on_nth_tick = function() end,
+		on_nth_tick = function(tick, callback)
+			nth_ticks[tick] = callback
+		end,
 	}
 	local game = {
 		surfaces = {},
@@ -78,14 +81,45 @@ local function runtime()
 			end
 		end,
 	}
-	return result, storage, settings, lifecycle, events, interfaces, messages, event_ids
+	return result, storage, settings, lifecycle, events, interfaces, messages, event_ids, nth_ticks
+end
+
+local function copy(value)
+	if type(value) ~= "table" then
+		return value
+	end
+	local result = {}
+	for key, nested in pairs(value) do
+		result[key] = copy(nested)
+	end
+	return result
+end
+
+local function same(left, right)
+	if type(left) ~= type(right) then
+		return false
+	end
+	if type(left) ~= "table" then
+		return left == right
+	end
+	for key, value in pairs(left) do
+		if not same(value, right[key]) then
+			return false
+		end
+	end
+	for key in pairs(right) do
+		if left[key] == nil then
+			return false
+		end
+	end
+	return true
 end
 
 return {
 	{
 		name = "registers one application boundary and shares lifecycle activation",
 		run = function()
-			local api, storage, settings, lifecycle, events, interfaces, messages, event_ids =
+			local api, storage, settings, lifecycle, events, interfaces, messages, event_ids, nth_ticks =
 				runtime()
 			Application.register(api)
 			assert(type(lifecycle.init) == "function")
@@ -104,8 +138,17 @@ return {
 			assert(storage.rules == rules)
 			assert(messages[1] == "[factorio-rules] Configuration updated")
 			local saved_rules = storage.rules
+			storage.resource_discovery.queue = {
+				{ surface_index = 1, chunk = { x = 0, y = 0 }, area = {} },
+			}
+			storage.resource_discovery.head = 1
+			storage.resource_discovery.active = true
+			storage.rules.overrides["gone:rule"] = { enabled = false }
+			local saved_storage = copy(storage)
 			lifecycle.load()
 			assert(storage.rules == saved_rules)
+			assert(same(storage, saved_storage), "on_load must not mutate persisted state")
+			assert(type(nth_ticks[1]) == "function", "on_load must resume pending discovery")
 		end,
 	},
 }
