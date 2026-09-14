@@ -21,6 +21,7 @@ local Catalogue = require("lib.rules.catalogue")
 local ZoneStore = require("runtime.zone_store")
 local RuleAuthoring = require("lib.rules.authoring")
 local Permissions = require("runtime.permissions")
+local Capabilities = require("runtime.capabilities")
 
 local M = {}
 
@@ -109,8 +110,9 @@ function M.register(runtime)
 			end
 		end,
 	})
+	local capabilities = Capabilities.new()
 
-	local adapters = AdapterRegistry.new()
+	local adapters = AdapterRegistry.new({ capabilities = capabilities })
 	ConstructionAdapters.register(adapters)
 	local compiler = Compiler.new({
 		predicate_requirements = extensions:predicate_requirements(),
@@ -316,6 +318,9 @@ function M.register(runtime)
 		end
 		local changed, errors = compiler:replace(effective)
 		assert(changed ~= nil, errors and table.concat(errors, "; "))
+		local capability_ok, capability_errors =
+			capabilities:apply_requirements(compiler:requirements().capabilities)
+		assert(capability_ok, capability_errors and table.concat(capability_errors, "; "))
 		assert(overlays:replace(overlay_entries()))
 	end
 
