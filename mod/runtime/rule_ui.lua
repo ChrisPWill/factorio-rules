@@ -43,6 +43,21 @@ function M.new(options)
 		return not options.can_edit or options.can_edit(index)
 	end
 
+	local function owned_element(element, index)
+		local frame = player(index) and player(index).gui.screen[M.FRAME_NAME]
+		if not frame or not element.parent then
+			return true
+		end
+		local current = element
+		while current do
+			if current == frame then
+				return true
+			end
+			current = current.parent
+		end
+		return false
+	end
+
 	local function refresh(index)
 		local target = player(index)
 		local frame = target and target.gui.screen[M.FRAME_NAME]
@@ -59,7 +74,11 @@ function M.new(options)
 			header.add({
 				type = "checkbox",
 				state = rule.enabled,
-				tags = { action = "enabled", rule_id = rule.id },
+				tags = {
+					action = "enabled",
+					rule_id = rule.id,
+					revision = options.revision and options.revision(rule.id),
+				},
 			})
 			header.add({ type = "label", caption = rule.enabled and "Enabled" or "Disabled" })
 			header.add({ type = "label", caption = rule.id })
@@ -79,12 +98,20 @@ function M.new(options)
 			details.add({
 				type = "textfield",
 				text = tostring(rule.priority),
-				tags = { action = "priority", rule_id = rule.id },
+				tags = {
+					action = "priority",
+					rule_id = rule.id,
+					revision = options.revision and options.revision(rule.id),
+				},
 			})
 			details.add({
 				type = "button",
 				caption = "Reset",
-				tags = { action = "reset", rule_id = rule.id },
+				tags = {
+					action = "reset",
+					rule_id = rule.id,
+					revision = options.revision and options.revision(rule.id),
+				},
 			})
 		end
 		if options.zones then
@@ -172,6 +199,9 @@ function M.new(options)
 		if not element or not element.valid or not element.tags or not element.tags.action then
 			return false
 		end
+		if not owned_element(element, event.player_index) then
+			return false
+		end
 		local action, id = element.tags.action, element.tags.rule_id
 		if action == "open-manager" then
 			ui:open(event.player_index)
@@ -215,12 +245,13 @@ function M.new(options)
 			if not can_edit(event.player_index) then
 				return false, "only an admin can edit rules"
 			end
-			assert(
-				options.mutate(
-					{ { kind = "reset", id = id, revision = options.revision(id) } },
-					{ origin = "gui", player_index = event.player_index }
-				)
-			)
+			assert(options.mutate({
+				{
+					kind = "reset",
+					id = id,
+					revision = element.tags.revision or options.revision(id),
+				},
+			}, { origin = "gui", player_index = event.player_index }))
 		elseif action == "enabled" then
 			if not can_edit(event.player_index) then
 				return false, "only an admin can edit rules"
@@ -229,7 +260,7 @@ function M.new(options)
 				{
 					kind = "set-enabled",
 					id = id,
-					revision = options.revision(id),
+					revision = element.tags.revision or options.revision(id),
 					enabled = element.state,
 				},
 			}, { origin = "gui", player_index = event.player_index }))
@@ -245,7 +276,7 @@ function M.new(options)
 				{
 					kind = "set-priority",
 					id = id,
-					revision = options.revision(id),
+					revision = element.tags.revision or options.revision(id),
 					priority = value,
 				},
 			}, { origin = "gui", player_index = event.player_index }))
