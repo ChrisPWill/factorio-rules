@@ -657,13 +657,25 @@ function M.register(runtime)
 				return ok, errors
 			end,
 			override_rule = function(id, fields, source)
-				return rule_registry:override(id, fields, source)
+				local ok, errors = rule_registry:override(id, fields, source)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			replace_external_rule = function(id, rule, source)
-				return rule_registry:replace_external(id, rule, source)
+				local ok, errors = rule_registry:replace_external(id, rule, source)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			set_rule_override = function(id, fields)
-				return rule_registry:set_override(id, fields)
+				local ok, errors = rule_registry:set_override(id, fields)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			mutate_rules = function(commands)
 				local result, errors = authoring:execute(commands, { origin = "remote" })
@@ -673,7 +685,11 @@ function M.register(runtime)
 				return result, errors
 			end,
 			migrate_rules = function(options)
-				return rule_registry:migrate(options)
+				local ok, errors = rule_registry:migrate(options)
+				if ok then
+					configure_policy()
+				end
+				return ok, errors
 			end,
 			register_predicate_provider = function(name, descriptor, requirement)
 				local result, errors =
